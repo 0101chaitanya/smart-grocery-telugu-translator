@@ -12,7 +12,8 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mongoose": "^9.7.3",
-    "openai": "^6.45.0"
+    "openai": "^6.45.0",
+    "zod": "^4.4.3"
   },
   "allowScripts": {
     "@google/genai@2.10.0": true,
