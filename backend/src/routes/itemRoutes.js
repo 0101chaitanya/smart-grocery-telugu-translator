@@ -1,7 +1,10 @@
 import express from 'express';
 import Item from '../models/Item.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+router.use(protect); // check this later
 
 // 1. GET /api/items - Fetch all items (searches English & Telugu regional names)
 router.get('/', async (req, res) => {
@@ -53,11 +56,9 @@ router.post('/lookup', async (req, res) => {
     // 2. OpenRouter API setup
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!openRouterApiKey) {
-      return res
-        .status(500)
-        .json({
-          error: 'OpenRouter API Key is missing in server environment (.env)',
-        });
+      return res.status(500).json({
+        error: 'OpenRouter API Key is missing in server environment (.env)',
+      });
     }
 
     const systemPrompt = `You are an AI assistant for a grocery translation app in India.
