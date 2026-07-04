@@ -1,59 +1,41 @@
 import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
-import {
-  ShoppingCart,
-  Package,
-  Trash2,
-  ArrowLeft,
-  Save,
-  FolderOpen,
-  RefreshCw,
-  Edit2,
-} from "lucide-react"; // Import Edit2
+import { ShoppingCart, Package, Trash2, ArrowLeft, Save, FolderOpen, RefreshCw, Edit2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "./Header";
 import { t } from "./translations";
 import { useState } from "react";
 
-import {
-  useGetMeQuery,
+import { 
+  useGetMeQuery, 
   useLogoutMutation,
   useGetListsQuery,
   useCreateListMutation,
   useDeleteListMutation,
-  useUpdateListMutation,
+  useUpdateListMutation
 } from "../store/apiSlice";
-import {
-  updateQuantity,
-  removeFromCart,
-  loadCart,
-  clearActiveList,
-  updateActiveListName,
-} from "../store/cartSlice";
+import { updateQuantity, removeFromCart, loadCart, clearActiveList, updateActiveListName } from "../store/cartSlice";
 
 export default function CartView() {
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
-
+  
   const activeListId = useSelector((state) => state.cartState.activeListId);
   const activeListName = useSelector((state) => state.cartState.activeListName);
-
+  
   const dispatch = useDispatch();
 
   const [listName, setListName] = useState("");
   const [saveError, setSaveError] = useState("");
 
-  // Rename states
   const [editingListId, setEditingListId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
 
-  // Saved Lists Hooks
-  const { data: savedLists = [], isLoading: isLoadingLists } =
-    useGetListsQuery();
+  const { data: savedLists = [], isLoading: isLoadingLists } = useGetListsQuery();
   const [createList, { isLoading: isSavingList }] = useCreateListMutation();
   const [deleteList] = useDeleteListMutation();
   const [updateList, { isLoading: isUpdatingList }] = useUpdateListMutation();
@@ -74,9 +56,9 @@ export default function CartView() {
     try {
       const newList = await createList({
         name: listName.trim(),
-        items: cart,
+        items: cart
       }).unwrap();
-
+      
       dispatch(loadCart(newList));
       setListName("");
     } catch (err) {
@@ -89,7 +71,7 @@ export default function CartView() {
     try {
       await updateList({
         id: activeListId,
-        listData: { items: cart },
+        listData: { items: cart }
       }).unwrap();
     } catch (err) {
       setSaveError(err.data?.error || "Failed to update grocery list.");
@@ -101,10 +83,9 @@ export default function CartView() {
     try {
       await updateList({
         id,
-        listData: { name: renameValue.trim() },
+        listData: { name: renameValue.trim() }
       }).unwrap();
-
-      // Update name badge in header if currently staging this list
+      
       dispatch(updateActiveListName({ id, name: renameValue.trim() }));
       setEditingListId(null);
     } catch (err) {
@@ -179,7 +160,7 @@ export default function CartView() {
                 return (
                   <div
                     key={entry._id}
-                    className="p-3 bg-muted/30 rounded-lg border border-border flex items-center justify-between"
+                    className="p-3.5 bg-muted/30 rounded-lg border border-border flex flex-col xs:flex-row xs:items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3">
                       {entry.imageUrl && (
@@ -187,25 +168,24 @@ export default function CartView() {
                           src={entry.imageUrl}
                           alt={getItemNameDisplay(entry)}
                           referrerPolicy="no-referrer"
-                          className="w-10 h-10 rounded object-cover border border-border"
+                          className="w-10 h-10 rounded object-cover border border-border shrink-0"
                         />
                       )}
                       <div>
                         <h4 className="font-semibold text-sm text-foreground">
                           {getItemNameDisplay(entry)}
                         </h4>
-                        <p className="text-[10px] text-muted-foreground">
-                          {t[lang].qty}: {entry.quantity} {entry.defaultUnit}
-                          {itemPrice > 0 &&
-                            ` @ ₹${itemPrice}/${entry.defaultUnit}`}
+                        <p className="text-[10px] text-muted-foreground font-medium">
+                          {t[lang].qty}: {entry.quantity} {entry.defaultUnit} 
+                          {itemPrice > 0 && ` @ ₹${itemPrice}/${entry.defaultUnit}`}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between xs:justify-end gap-3 border-t xs:border-t-0 border-border/40 pt-2 xs:pt-0">
                       {/* Line Cost Total */}
                       {itemPrice > 0 && (
-                        <span className="text-sm font-bold text-foreground pr-2">
+                        <span className="text-sm font-bold text-foreground pr-1">
                           ₹{lineTotal}
                         </span>
                       )}
@@ -220,7 +200,7 @@ export default function CartView() {
                               }),
                             )
                           }
-                          className="px-2 py-0.5 hover:bg-muted font-bold text-xs text-foreground"
+                          className="px-2.5 py-1 hover:bg-muted font-bold text-xs text-foreground"
                         >
                           -
                         </button>
@@ -236,7 +216,7 @@ export default function CartView() {
                               }),
                             )
                           }
-                          className="px-2 py-0.5 hover:bg-muted font-bold text-xs text-foreground"
+                          className="px-2.5 py-1 hover:bg-muted font-bold text-xs text-foreground"
                         >
                           +
                         </button>
@@ -246,7 +226,7 @@ export default function CartView() {
                         size="icon"
                         variant="ghost"
                         onClick={() => dispatch(removeFromCart(entry._id))}
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -260,18 +240,12 @@ export default function CartView() {
           {/* Saving / Updating Form */}
           {cart.length > 0 && (
             <div className="border-t border-border pt-4">
+              
               {/* Grand Total Value Banner */}
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-semibold text-muted-foreground">
-                  {t[lang].totalLabel}
-                </span>
+                <span className="text-sm font-semibold text-muted-foreground">{t[lang].totalLabel}</span>
                 <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                  ₹
-                  {cart.reduce(
-                    (sum, entry) =>
-                      sum + entry.quantity * (entry.latestPrice || 0),
-                    0,
-                  )}
+                  ₹{cart.reduce((sum, entry) => sum + (entry.quantity * (entry.latestPrice || 0)), 0)}
                 </span>
               </div>
 
@@ -280,45 +254,31 @@ export default function CartView() {
                   {saveError}
                 </p>
               )}
-
+              
               <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
                 {/* 1. If currently editing a list, show "Update" button */}
                 {activeListId && (
-                  <Button
-                    onClick={handleUpdateList}
+                  <Button 
+                    onClick={handleUpdateList} 
                     disabled={isUpdatingList}
-                    className="gap-2 font-semibold flex-1"
+                    className="gap-2 font-semibold flex-1 h-11 px-6"
                   >
-                    <RefreshCw
-                      className={`w-4 h-4 ${isUpdatingList ? "animate-spin" : ""}`}
-                    />
+                    <RefreshCw className={`w-4 h-4 ${isUpdatingList ? 'animate-spin' : ''}`} />
                     Update "{activeListName}"
                   </Button>
                 )}
 
                 {/* 2. Save as new list option */}
-                <form
-                  onSubmit={handleSaveNewList}
-                  className="flex gap-2 flex-[2] w-full"
-                >
+                <form onSubmit={handleSaveNewList} className="flex gap-2 flex-[2] w-full">
                   <Input
                     type="text"
-                    placeholder={
-                      activeListId
-                        ? "Save copy as..."
-                        : t[lang].saveListPlaceholder
-                    }
+                    placeholder={activeListId ? "Save copy as..." : t[lang].saveListPlaceholder}
                     value={listName}
                     onChange={(e) => setListName(e.target.value)}
                     required
-                    className="flex-1 bg-background text-foreground border-border"
+                    className="flex-1 bg-background text-foreground border-border h-11"
                   />
-                  <Button
-                    type="submit"
-                    disabled={isSavingList}
-                    variant={activeListId ? "outline" : "default"}
-                    className="gap-2 font-semibold"
-                  >
+                  <Button type="submit" disabled={isSavingList} variant={activeListId ? "outline" : "default"} className="gap-2 font-semibold h-11 px-5">
                     <Save className="w-4 h-4" />
                     {activeListId ? "Save Copy" : t[lang].saveListButton}
                   </Button>
@@ -351,9 +311,9 @@ export default function CartView() {
                 <div
                   key={list._id}
                   className={`p-4 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-sm transition ${
-                    activeListId === list._id
-                      ? "border-primary bg-primary/5 dark:bg-primary/5"
-                      : "border-border bg-muted/20"
+                    activeListId === list._id 
+                      ? 'border-primary bg-primary/5 dark:bg-primary/5' 
+                      : 'border-border bg-muted/20'
                   }`}
                 >
                   <div className="space-y-1 flex-1">
@@ -391,7 +351,6 @@ export default function CartView() {
                             Staged
                           </span>
                         )}
-                        {/* Rename button trigger */}
                         <Button
                           size="icon"
                           variant="ghost"
@@ -405,26 +364,17 @@ export default function CartView() {
                         </Button>
                       </h4>
                     )}
-
+                    
                     {/* Render Inflation Tracker Metrics */}
                     {list.originalValue > 0 && list.currentValue > 0 ? (
                       <div className="space-y-1">
                         <p className="text-[11px] text-muted-foreground">
-                          {t[lang].originalCost}:{" "}
-                          <span className="font-semibold text-foreground">
-                            ₹{list.originalValue}
-                          </span>{" "}
-                          • {t[lang].currentValuation}:{" "}
-                          <span className="font-semibold text-foreground">
-                            ₹{list.currentValue}
-                          </span>
+                          {t[lang].originalCost}: <span className="font-semibold text-foreground">₹{list.originalValue}</span> • {t[lang].currentValuation}: <span className="font-semibold text-foreground">₹{list.currentValue}</span>
                         </p>
-
+                        
                         {(() => {
                           const diff = list.currentValue - list.originalValue;
-                          const percent = Math.round(
-                            (diff / list.originalValue) * 100,
-                          );
+                          const percent = Math.round((diff / list.originalValue) * 100);
 
                           if (percent > 0) {
                             return (
@@ -449,8 +399,7 @@ export default function CartView() {
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        {list.items.length} {t[lang].listItemsCount} • Saved on{" "}
-                        {new Date(list.createdAt).toLocaleDateString()}
+                        {list.items.length} {t[lang].listItemsCount} • Saved on {new Date(list.createdAt).toLocaleDateString()}
                       </p>
                     )}
                   </div>
@@ -458,9 +407,7 @@ export default function CartView() {
                   <div className="flex gap-2 self-end sm:self-center">
                     <Button
                       size="sm"
-                      variant={
-                        activeListId === list._id ? "default" : "outline"
-                      }
+                      variant={activeListId === list._id ? "default" : "outline"}
                       onClick={() => handleLoadList(list)}
                       className="border-border text-foreground hover:bg-muted"
                     >

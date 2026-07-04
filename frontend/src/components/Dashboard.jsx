@@ -12,7 +12,7 @@ import {
   useGetMeQuery,
   useLogoutMutation,
   useRegenerateItemMutation,
-  useGetItemTrendsQuery, // Import trends query hook
+  useGetItemTrendsQuery,
 } from "../store/apiSlice";
 import { addToCart } from "../store/cartSlice";
 
@@ -23,9 +23,9 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [itemInput, setItemInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-
+  
   const [regeneratingId, setRegeneratingId] = useState(null);
-  const [showTrendsId, setShowTrendsId] = useState(null); // Track open trends drawer
+  const [showTrendsId, setShowTrendsId] = useState(null);
 
   const { data: items = [], isLoading } = useGetItemsQuery(search);
   const [lookupItem, { isLoading: isLookingUp }] = useLookupItemMutation();
@@ -86,16 +86,11 @@ export default function Dashboard() {
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const categoryColors = {
-    Vegetables:
-      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
-    Fruits:
-      "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
-    Groceries:
-      "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
-    Spices:
-      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
-    Others:
-      "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
+    Vegetables: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+    Fruits: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
+    Groceries: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
+    Spices: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+    Others: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
   };
 
   return (
@@ -124,7 +119,7 @@ export default function Dashboard() {
               <label className="text-xs font-semibold text-muted-foreground">
                 {t[lang].inputLabel}
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   type="text"
                   value={itemInput}
@@ -133,7 +128,7 @@ export default function Dashboard() {
                   required
                   className="flex-1 text-foreground bg-background border-border"
                 />
-                <Button type="submit" disabled={isLookingUp}>
+                <Button type="submit" disabled={isLookingUp} className="w-full sm:w-auto font-semibold">
                   {isLookingUp ? t[lang].translating : t[lang].submit}
                 </Button>
               </div>
@@ -161,13 +156,9 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {items.map((item) => {
-              const diffPercent =
-                item.avgPrice > 0 && item.latestPrice > 0
-                  ? Math.round(
-                      ((item.latestPrice - item.avgPrice) / item.avgPrice) *
-                        100,
-                    )
-                  : 0;
+              const diffPercent = item.avgPrice > 0 && item.latestPrice > 0
+                ? Math.round(((item.latestPrice - item.avgPrice) / item.avgPrice) * 100)
+                : 0;
 
               return (
                 <div
@@ -190,9 +181,7 @@ export default function Dashboard() {
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${categoryColors[item.category] || categoryColors.Others}`}
-                        >
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${categoryColors[item.category] || categoryColors.Others}`}>
                           {t[lang].categories[item.category] || item.category}
                         </span>
                         <h3 className="font-bold text-foreground text-lg mt-1.5 truncate">
@@ -206,15 +195,11 @@ export default function Dashboard() {
 
                     {/* Price Status */}
                     <div className="bg-muted/40 p-2.5 rounded-lg border border-border/50 text-xs flex flex-wrap gap-2 items-center justify-between">
-                      <span className="font-semibold text-muted-foreground">
-                        {t[lang].priceLabel}
-                      </span>
+                      <span className="font-semibold text-muted-foreground">{t[lang].priceLabel}</span>
                       {item.latestPrice > 0 ? (
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-foreground">
-                            ₹{item.latestPrice}/{item.defaultUnit}
-                          </span>
-
+                          <span className="font-bold text-foreground">₹{item.latestPrice}/{item.defaultUnit}</span>
+                          
                           {diffPercent < 0 && (
                             <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
                               {Math.abs(diffPercent)}% {t[lang].cheaperLabel}
@@ -225,15 +210,10 @@ export default function Dashboard() {
                               +{diffPercent}% {t[lang].expensiveLabel}
                             </span>
                           )}
-                          <span className="text-[10px] text-muted-foreground">
-                            ({t[lang].avgLabel}
-                            {item.avgPrice})
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">({t[lang].avgLabel}{item.avgPrice})</span>
                         </div>
                       ) : (
-                        <span className="italic text-muted-foreground/80">
-                          {t[lang].noPrice}
-                        </span>
+                        <span className="italic text-muted-foreground/80">{t[lang].noPrice}</span>
                       )}
                     </div>
 
@@ -243,28 +223,22 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
+                  {/* Action Buttons (Responsive Layout) */}
+                  <div className="mt-4 pt-3 border-t border-border flex flex-col xs:flex-row xs:items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground font-semibold">
                       Unit: {item.defaultUnit}
                     </span>
-
-                    <div className="flex items-center gap-2">
+                    
+                    <div className="flex flex-wrap items-center gap-1.5 justify-end">
                       {/* Price Trends Toggle */}
                       {item.latestPrice > 0 && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() =>
-                            setShowTrendsId(
-                              showTrendsId === item._id ? null : item._id,
-                            )
-                          }
-                          className="h-8 text-xs font-semibold text-primary hover:text-primary/80"
+                          onClick={() => setShowTrendsId(showTrendsId === item._id ? null : item._id)}
+                          className="h-8 text-xs font-semibold text-primary hover:text-primary/80 px-2.5"
                         >
-                          {showTrendsId === item._id
-                            ? "Hide Trends"
-                            : t[lang].priceTrends}
+                          {showTrendsId === item._id ? "Hide Trends" : t[lang].priceTrends}
                         </Button>
                       )}
 
@@ -273,20 +247,17 @@ export default function Dashboard() {
                         variant="ghost"
                         disabled={regeneratingId === item._id}
                         onClick={() => handleRegenerate(item._id)}
-                        className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2"
                       >
-                        <RefreshCw
-                          className={`w-3.5 h-3.5 ${regeneratingId === item._id ? "animate-spin text-primary" : ""}`}
-                        />
-                        {regeneratingId === item._id
-                          ? t[lang].fetching
-                          : t[lang].fetchAgain}
+                        <RefreshCw className={`w-3.5 h-3.5 ${regeneratingId === item._id ? 'animate-spin text-primary' : ''}`} />
+                        <span className="hidden xs:inline">{regeneratingId === item._id ? t[lang].fetching : t[lang].fetchAgain}</span>
+                        {regeneratingId !== item._id && <span className="xs:hidden">Refresh</span>}
                       </Button>
 
                       <Button
                         size="sm"
                         onClick={() => dispatch(addToCart(item))}
-                        className="h-8 gap-1.5 font-semibold"
+                        className="h-8 gap-1.5 font-bold px-3"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add
                       </Button>
@@ -305,10 +276,7 @@ export default function Dashboard() {
 // Sub-component: Displays interactive trends chart and period selections
 function ItemTrendsDrawer({ itemId, lang }) {
   const [period, setPeriod] = useState("day");
-  const { data: trendData = [], isLoading } = useGetItemTrendsQuery({
-    id: itemId,
-    period,
-  });
+  const { data: trendData = [], isLoading } = useGetItemTrendsQuery({ id: itemId, period });
 
   const periods = [
     { key: "day", label: t[lang].dayLabel },
@@ -320,9 +288,7 @@ function ItemTrendsDrawer({ itemId, lang }) {
   return (
     <div className="bg-muted/30 border border-border/50 rounded-lg p-3 space-y-3 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-foreground">
-          {t[lang].priceTrends}
-        </span>
+        <span className="text-xs font-bold text-foreground">{t[lang].priceTrends}</span>
         {/* Period Selector Tabs */}
         <div className="flex bg-muted rounded p-0.5 border border-border">
           {periods.map((p) => (
@@ -343,13 +309,9 @@ function ItemTrendsDrawer({ itemId, lang }) {
       </div>
 
       {isLoading ? (
-        <div className="text-[10px] text-center text-muted-foreground py-4">
-          Loading stats...
-        </div>
+        <div className="text-[10px] text-center text-muted-foreground py-4">Loading stats...</div>
       ) : trendData.length === 0 ? (
-        <div className="text-[10px] text-center text-muted-foreground py-4">
-          {t[lang].noTrends}
-        </div>
+        <div className="text-[10px] text-center text-muted-foreground py-4">{t[lang].noTrends}</div>
       ) : (
         <div>
           {/* Dynamic Pure CSS Bar Chart */}
@@ -359,21 +321,15 @@ function ItemTrendsDrawer({ itemId, lang }) {
               <div className="flex items-end justify-between h-20 gap-2 pt-4 border-b border-border/50 mb-2">
                 {trendData.slice(-6).map((data, index) => {
                   const barHeight = Math.round((data.avgPrice / maxVal) * 100);
-
+                  
                   // Format label dynamically to look neat (shorten date formats)
                   let displayLabel = data.label;
-                  if (
-                    data.label.includes("-") &&
-                    (period === "day" || period === "month")
-                  ) {
-                    displayLabel = data.label.split("-").slice(1).join("/");
+                  if (data.label.includes('-') && (period === 'day' || period === 'month')) {
+                    displayLabel = data.label.split('-').slice(1).join('/');
                   }
 
                   return (
-                    <div
-                      key={index}
-                      className="flex-1 flex flex-col items-center group relative"
-                    >
+                    <div key={index} className="flex-1 flex flex-col items-center group relative">
                       {/* Bar columns */}
                       <div
                         style={{ height: `${barHeight}%` }}

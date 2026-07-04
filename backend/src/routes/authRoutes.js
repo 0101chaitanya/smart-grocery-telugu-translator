@@ -129,66 +129,106 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// 4. POST /api/auth/logout - Invalidate Session
-router.post('/logout', async (req, res) => {
+// 4. POST /api/auth/logout - Invalidate Session or Revoke JWT Refresh Token
+router.post('/logout', (req, res, next) => {
+  const { refreshToken } = req.body || {};
+
+  if (refreshToken) {
+    User.findOneAndUpdate({ refreshToken }, { refreshToken: '' })
+      .then(() => {
+        return res.json({ message: 'Successfully logged out, session revoked' });
+      })
+      .catch(err => {
+        return res.status(500).json({ error: err.message });
+      });
+    return;
+  }
+
+  // Verify that passport methods are attached
+  if (typeof req.logout !== 'function') {
+    res.clearCookie('connect.sid');
+    return res.json({ message: 'Passport not initialized, cleared session cookie' });
+  }
+
   try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-      return res
-        .status(400)
-        .json({ error: 'Refresh token is required to log out' });
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      req.logout((err) => {
+        if (err) {
+          console.error("Passport logout callback error:", err);
+          return next(err);
+        }
+        
+        if (req.session) {
+          req.session.destroy((sessionErr) => {
+            if (sessionErr) {
+              console.error("Express session destroy error:", sessionErr);
+              return next(sessionErr);
+            }
+            res.clearCookie('connect.sid');
+            return res.json({ message: 'Logged out successfully' });
+          });
+        } else {
+          res.clearCookie('connect.sid');
+          return res.json({ message: 'Logged out successfully' });
+        }
+      });
+    } else {
+      // If not authenticated, clear the cookie anyway to flush frontend state
+      if (req.session) {
+        req.session.destroy(() => {
+          res.clearCookie('connect.sid');
+          return res.json({ message: 'Logged out and session cleared' });
+        });
+      } else {
+        res.clearCookie('connect.sid');
+        return res.json({ message: 'Logged out and cookies cleared' });
+      }
     }
-
-    // Locate user with this token and clear it to revoke access
-    const user = await User.findOne({ refreshToken });
-    if (user) {
-      user.refreshToken = '';
-      await user.save();
+  } catch (catchError) {
+    console.warn("Synchronous logout fallback triggered:", catchError.message);
+    try {
+      req.logout(); // Try calling synchronously
+      if (req.session) {
+        req.session.destroy(() => {
+          res.clearCookie('connect.sid');
+          return res.json({ message: 'Logged out successfully (sync fallback)' });
+        });
+      } else {
+        res.clearCookie('connect.sid');
+        return res.json({ message: 'Logged out successfully (sync fallback)' });
+      }
+    } catch (innerError) {
+      console.error("Bulletproof logout failed completely:", innerError);
+      res.clearCookie('connect.sid');
+      return res.status(500).json({ error: innerError.message });
     }
-
-    res.json({ message: 'Successfully logged out, session revoked' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
-// 1. GET /api/auth/google - Trigger Google Consent redirect
+// 5. GET /api/auth/google - Trigger Google Consent redirect
 router.get(
   '/google',
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
-// 2. GET /api/auth/google/callback - Receives redirect from Google
+// 6. GET /api/auth/google/callback - Receives redirect from Google
 router.get(
   '/google/callback',
   passport.authenticate('google', {
-    failureRedirect: 'http://localhost:5173/auth?error=failed',
+    failureRedirect: 'http://localhost:5173/login?error=failed',
   }),
   (req, res) => {
-    // Session cookie is automatically set on the browser. Redirect back to React SPA
     res.redirect('http://localhost:5173/');
   }
 );
 
-// 3. GET /api/auth/me - Check current authentication status
+// 7. GET /api/auth/me - Check current authentication status
 router.get('/me', (req, res) => {
   if (req.isAuthenticated()) {
     res.json({ user: req.user });
   } else {
     res.status(401).json({ error: 'Not authenticated' });
   }
-});
-
-// 4. POST /api/auth/logout - Invalidate Session
-router.post('/logout', (req, res, next) => {
-  req.logout((err) => {
-    if (err) return next(err);
-    // Destroy express session in MongoDB
-    req.session.destroy(() => {
-      res.clearCookie('connect.sid'); // default express-session cookie name
-      res.json({ message: 'Logged out successfully' });
-    });
-  });
 });
 
 export default router;
