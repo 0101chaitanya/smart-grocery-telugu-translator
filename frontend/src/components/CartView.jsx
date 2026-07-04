@@ -153,7 +153,7 @@ export default function CartView() {
         </Link>
 
         {/* Section 1: Active Staged List */}
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-[300px]">
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-75">
           <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
             <ShoppingCart className="w-5 h-5 text-foreground" />
             <h2 className="font-bold text-foreground text-lg">
@@ -171,80 +171,108 @@ export default function CartView() {
             </div>
           ) : (
             <div className="space-y-4 flex-1 mb-6">
-              {cart.map((entry) => (
-                <div
-                  key={entry._id}
-                  className="p-3 bg-muted/30 rounded-lg border border-border flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    {entry.imageUrl && (
-                      <img
-                        src={entry.imageUrl}
-                        alt={getItemNameDisplay(entry)}
-                        referrerPolicy="no-referrer"
-                        className="w-10 h-10 rounded object-cover border border-border"
-                      />
-                    )}
-                    <div>
-                      <h4 className="font-semibold text-sm text-foreground">
-                        {getItemNameDisplay(entry)}
-                      </h4>
-                      <p className="text-[10px] text-muted-foreground">
-                        {t[lang].qty}: {entry.quantity} {entry.defaultUnit}
-                      </p>
-                    </div>
-                  </div>
+              {cart.map((entry) => {
+                const itemPrice = entry.latestPrice || 0;
+                const lineTotal = entry.quantity * itemPrice;
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center border border-border rounded bg-background">
-                      <button
-                        onClick={() =>
-                          dispatch(
-                            updateQuantity({
-                              _id: entry._id,
-                              quantity: Math.max(0.25, entry.quantity - 0.25),
-                            }),
-                          )
-                        }
-                        className="px-2 py-0.5 hover:bg-muted font-bold text-xs text-foreground"
-                      >
-                        -
-                      </button>
-                      <span className="px-2 text-xs font-semibold text-foreground">
-                        {entry.quantity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          dispatch(
-                            updateQuantity({
-                              _id: entry._id,
-                              quantity: entry.quantity + 0.25,
-                            }),
-                          )
-                        }
-                        className="px-2 py-0.5 hover:bg-muted font-bold text-xs text-foreground"
-                      >
-                        +
-                      </button>
+                return (
+                  <div
+                    key={entry._id}
+                    className="p-3 bg-muted/30 rounded-lg border border-border flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      {entry.imageUrl && (
+                        <img
+                          src={entry.imageUrl}
+                          alt={getItemNameDisplay(entry)}
+                          referrerPolicy="no-referrer"
+                          className="w-10 h-10 rounded object-cover border border-border"
+                        />
+                      )}
+                      <div>
+                        <h4 className="font-semibold text-sm text-foreground">
+                          {getItemNameDisplay(entry)}
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground">
+                          {t[lang].qty}: {entry.quantity} {entry.defaultUnit}
+                          {itemPrice > 0 &&
+                            ` @ ₹${itemPrice}/${entry.defaultUnit}`}
+                        </p>
+                      </div>
                     </div>
 
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => dispatch(removeFromCart(entry._id))}
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      {/* Line Cost Total */}
+                      {itemPrice > 0 && (
+                        <span className="text-sm font-bold text-foreground pr-2">
+                          ₹{lineTotal}
+                        </span>
+                      )}
+
+                      <div className="flex items-center border border-border rounded bg-background">
+                        <button
+                          onClick={() =>
+                            dispatch(
+                              updateQuantity({
+                                _id: entry._id,
+                                quantity: Math.max(0.25, entry.quantity - 0.25),
+                              }),
+                            )
+                          }
+                          className="px-2 py-0.5 hover:bg-muted font-bold text-xs text-foreground"
+                        >
+                          -
+                        </button>
+                        <span className="px-2 text-xs font-semibold text-foreground">
+                          {entry.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            dispatch(
+                              updateQuantity({
+                                _id: entry._id,
+                                quantity: entry.quantity + 0.25,
+                              }),
+                            )
+                          }
+                          className="px-2 py-0.5 hover:bg-muted font-bold text-xs text-foreground"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => dispatch(removeFromCart(entry._id))}
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {/* Saving / Updating Form */}
           {cart.length > 0 && (
             <div className="border-t border-border pt-4">
+              {/* Paste the Grand Total Value Banner here: */}
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-semibold text-muted-foreground">
+                  {t[lang].totalLabel}
+                </span>
+                <span className="text-xl font-bold bg-linear-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+                  ₹
+                  {cart.reduce(
+                    (sum, entry) =>
+                      sum + entry.quantity * (entry.latestPrice || 0),
+                    0,
+                  )}
+                </span>
+              </div>
               {saveError && (
                 <p className="text-xs text-red-500 bg-red-50/10 p-2 mb-3 rounded border border-red-500/20">
                   {saveError}
@@ -269,7 +297,7 @@ export default function CartView() {
                 {/* 2. Save as new list option */}
                 <form
                   onSubmit={handleSaveNewList}
-                  className="flex gap-2 flex-[2] w-full"
+                  className="flex gap-2 flex-2 w-full"
                 >
                   <Input
                     type="text"

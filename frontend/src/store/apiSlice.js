@@ -69,6 +69,14 @@ export const groceryApi = createApi({
       }),
       invalidatesTags: ["List"],
     }),
+    logPrice: builder.mutation({
+      query: ({ id, price }) => ({
+        url: `/items/${id}/prices`,
+        method: "POST",
+        body: { price },
+      }),
+      invalidatesTags: ["Item"], // Triggers auto-refetch to recalculate averages
+    }),
   }),
 });
 
@@ -82,4 +90,5 @@ export const {
   useCreateListMutation,
   useDeleteListMutation,
   useUpdateListMutation,
+  useLogPriceMutation,
 } = groceryApi;

@@ -33,7 +33,7 @@ export default function Header({ lang, userData, handleLogout, cartCount }) {
     <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b border-border z-50 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="hover:opacity-90">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">
+          <h1 className="text-xl font-bold bg-linear-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">
             {t[lang].title}
           </h1>
           {/* Dynamically render editing badge if a saved list is loaded */}

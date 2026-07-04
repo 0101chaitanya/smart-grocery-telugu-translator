@@ -14,7 +14,7 @@ export default function AuthPage() {
 
       {/* Brand title in Login Header */}
       <header className="p-4 flex justify-between items-center max-w-7xl w-full mx-auto">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">
+        <h1 className="text-xl font-bold bg-linear-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">
           {t[lang].title}
         </h1>
         <Button

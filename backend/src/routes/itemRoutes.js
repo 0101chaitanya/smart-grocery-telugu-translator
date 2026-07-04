@@ -72,115 +72,6 @@ function extractJSON(text) {
   return JSON.parse(text);
 }
 
-// POST /api/items/lookup - Search DB or auto-generate transliterations via Google Gemma models on OpenRouter
-router.post('/lookup', async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Item name is required' });
-    }
-
-    const trimmedName = name.trim();
-
-    // 1. Search database for existing item matching this name
-    const existingItem = await Item.findOne({
-      'translations.names': { $regex: `^${trimmedName}$`, $options: 'i' },
-    });
-
-    if (existingItem) {
-      return res.json({ source: 'database', item: existingItem });
-    }
-
-    // 2. OpenRouter API setup
-    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-    if (!openRouterApiKey) {
-      return res.status(500).json({
-        error: 'OpenRouter API Key is missing in server environment (.env)',
-      });
-    }
-
-    const systemPrompt = `You are an AI assistant for a grocery translation app in India.
-Translate the input name into English and Telugu. Provide common Telugu regional variations (e.g. for Onion: ["ఉల్లిపాయ", "ఎర్రగడ్డ"]).
-Detect the correct category (Groceries, Vegetables, Fruits, Spices, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
-Return ONLY a strict JSON object with this shape:
-{
-  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Others",
-  "defaultUnit": "kg" | "g" | "L" | "ml" | "pcs" | "pack",
-  "translations": [
-    { "languageCode": "en", "names": ["Onion", "Red Onion"] },
-    { "languageCode": "te", "names": ["ఉల్లిపాయ", "ఎర్రగడ్డ"] }
-  ]
-}`;
-
-    console.log(
-      `Attempting translation using auto-routed free model: openrouter/free`
-    );
-
-    const response = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openRouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'http://localhost:3000',
-          'X-Title': 'Mana Grocery Tracker',
-        },
-        body: JSON.stringify({
-          model: 'openrouter/free', // Automatically routes to any available free model
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: `Translate the grocery item name: "${trimmedName}"`,
-            },
-          ],
-          response_format: { type: 'json_object' }, // Guides the selected model to return valid JSON
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(
-        `OpenRouter API returned status ${response.status}: ${errText}`
-      );
-    }
-
-    const result = await response.json();
-    const rawContent = result.choices[0].message.content;
-
-    // Parse the generated schema from LLM
-    const generatedData = extractJSON(rawContent);
-
-    // Extract the primary English name for the AI image prompt
-    const englishTranslation = generatedData.translations.find(
-      (t) => t.languageCode === 'en'
-    );
-    const primaryEnglishName =
-      englishTranslation && englishTranslation.names.length > 0
-        ? englishTranslation.names[0]
-        : trimmedName;
-
-    // Construct the free AI image generation prompt URL
-    const imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
-
-    // Save the new item in the database with the AI Image URL
-    const newItem = new Item({
-      category: generatedData.category || 'Others',
-      defaultUnit: generatedData.defaultUnit || 'kg',
-      translations: generatedData.translations,
-      imageUrl: imageUrl, // Added field
-    });
-
-    await newItem.save();
-    res.status(201).json({ source: 'openrouter', item: newItem });
-  } catch (error) {
-    console.error('Lookup/Transliteration Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Keep the standard post route as backup
 router.post('/', async (req, res) => {
   try {
@@ -193,6 +84,140 @@ router.post('/', async (req, res) => {
   }
 });
 
+// 2. POST /api/items/lookup - Search DB or auto-generate transliterations
+router.post('/lookup', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Item name is required' });
+    }
+
+    const trimmedName = name.trim();
+
+    // Search database for existing item matching this name
+    const existingItem = await Item.findOne({
+      'translations.names': { $regex: `^${trimmedName}$`, $options: 'i' },
+    });
+
+    if (existingItem) {
+      return res.json({ source: 'database', item: existingItem });
+    }
+
+    // OpenRouter API setup
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterApiKey) {
+      return res.status(500).json({
+        error: 'OpenRouter API Key configuration is missing on the server.',
+      });
+    }
+
+    const systemPrompt = `You are an AI assistant for a grocery translation app in India.
+Translate the input name into English and Telugu. Provide common Telugu regional variations (e.g. for Onion: ["ఉల్లిపాయ", "ఎర్రగడ్డ"]).
+Detect the correct category (Groceries, Vegetables, Fruits, Spices, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
+Estimate a typical current retail market price in India (in INR ₹ per defaultUnit) and a normal price range (min/max). Ensure the pricing feels realistic for Indian local markets.
+Return ONLY a strict JSON object with this shape:
+{
+  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Others",
+  "defaultUnit": "kg" | "g" | "L" | "ml" | "pcs" | "pack",
+  "estimatedPrice": 40,
+  "priceRangeMin": 30,
+  "priceRangeMax": 50,
+  "translations": [
+    { "languageCode": "en", "names": ["Onion", "Red Onion"] },
+    { "languageCode": "te", "names": ["ఉల్లిపాయ", "ఎర్రగడ్డ"] }
+  ]
+}`;
+
+    let generatedData;
+
+    try {
+      console.log(`Querying OpenRouter: openrouter/free`);
+      const response = await fetch(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openRouterApiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost:3000',
+            'X-Title': 'Mana Grocery Tracker',
+          },
+          body: JSON.stringify({
+            model: 'openrouter/free',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              {
+                role: 'user',
+                content: `Translate the grocery item name: "${trimmedName}"`,
+              },
+            ],
+            response_format: { type: 'json_object' },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter returned status ${response.status}`);
+      }
+
+      const result = await response.json();
+      const rawContent = result.choices[0].message.content;
+      generatedData = extractJSON(rawContent);
+    } catch (apiError) {
+      console.warn(
+        'API translation failed, applying graceful fallback:',
+        apiError.message
+      );
+      // Fallback object so the application doesn't fail
+      generatedData = {
+        category: 'Others',
+        defaultUnit: 'kg',
+        estimatedPrice: 30,
+        translations: [
+          { languageCode: 'en', names: [trimmedName] },
+          { languageCode: 'te', names: [trimmedName] },
+        ],
+      };
+    }
+
+    // Extract English name for AI image
+    const englishTranslation = generatedData.translations.find(
+      (t) => t.languageCode === 'en'
+    );
+    const primaryEnglishName =
+      englishTranslation && englishTranslation.names.length > 0
+        ? englishTranslation.names[0]
+        : trimmedName;
+
+    const imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
+
+    const newItem = new Item({
+      category: generatedData.category || 'Others',
+      defaultUnit: generatedData.defaultUnit || 'kg',
+      translations: generatedData.translations,
+      imageUrl: imageUrl,
+    });
+
+    await newItem.save();
+
+    const initialPrice = generatedData.estimatedPrice || 25;
+    const priceRecord = new PriceRecord({
+      item: newItem._id,
+      price: Number(initialPrice),
+      user: req.user,
+    });
+    await priceRecord.save();
+
+    res.status(201).json({ source: 'openrouter', item: newItem });
+  } catch (error) {
+    console.error('Lookup Error:', error);
+    res.status(500).json({
+      error:
+        'Our translation system is temporarily busy. Please check your network or try again.',
+    });
+  }
+});
+
 // 3. PUT /api/items/:id/regenerate - Re-trigger LLM translation and image generation
 router.put('/:id/regenerate', async (req, res) => {
   try {
@@ -202,7 +227,6 @@ router.put('/:id/regenerate', async (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    // Determine what English name to lookup
     const englishTranslation = item.translations.find(
       (t) => t.languageCode === 'en'
     );
@@ -217,23 +241,28 @@ router.put('/:id/regenerate', async (req, res) => {
 
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!openRouterApiKey) {
-      return res.status(500).json({ error: 'OpenRouter API Key is missing' });
+      return res
+        .status(500)
+        .json({ error: 'OpenRouter API Key configuration is missing.' });
     }
 
     const systemPrompt = `You are an AI assistant for a grocery translation app in India.
 Translate the input name into English and Telugu. Provide common Telugu regional variations (e.g. ["ఉల్లిపాయ", "ఎర్రగడ్డ"]).
 Detect the correct category (Groceries, Vegetables, Fruits, Spices, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
+Estimate a typical current retail market price in India (in INR ₹ per defaultUnit) and a normal price range (min/max). Ensure the pricing feels realistic for Indian local markets.
 Return ONLY a strict JSON object with this shape:
 {
   "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Others",
   "defaultUnit": "kg" | "g" | "L" | "ml" | "pcs" | "pack",
+  "estimatedPrice": 40,
+  "priceRangeMin": 30,
+  "priceRangeMax": 50,
   "translations": [
     { "languageCode": "en", "names": ["Onion", "Red Onion"] },
     { "languageCode": "te", "names": ["ఉల్లిపాయ", "ఎర్రగడ్డ"] }
   ]
 }`;
 
-    // Request new translations from auto-routed free model
     const response = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
       {
@@ -259,14 +288,26 @@ Return ONLY a strict JSON object with this shape:
     );
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
+      return res.status(503).json({
+        error:
+          'Translation servers are busy. Please try again in a few seconds.',
+      });
     }
 
     const result = await response.json();
     const rawContent = result.choices[0].message.content;
-    const generatedData = extractJSON(rawContent);
 
-    // Get English name for new image
+    let generatedData;
+    try {
+      generatedData = extractJSON(rawContent);
+    } catch (parseError) {
+      // Graceful error return if the AI output is corrupted
+      return res.status(422).json({
+        error:
+          'Received corrupted data from translation service. Please try again.',
+      });
+    }
+
     const newEnglishTranslation = generatedData.translations.find(
       (t) => t.languageCode === 'en'
     );
@@ -275,21 +316,30 @@ Return ONLY a strict JSON object with this shape:
         ? newEnglishTranslation.names[0]
         : lookupName;
 
-    // Attach a random seed parameter to bypass cache and paint a completely new image
     const randomSeed = Math.floor(Math.random() * 1000000);
     const imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(newEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true&seed=${randomSeed}`;
 
-    // Update document in MongoDB
     item.category = generatedData.category || 'Others';
     item.defaultUnit = generatedData.defaultUnit || 'kg';
     item.translations = generatedData.translations;
     item.imageUrl = imageUrl;
 
     await item.save();
+
+    const initialPrice = generatedData.estimatedPrice || 25;
+    const priceRecord = new PriceRecord({
+      item: item._id,
+      price: Number(initialPrice),
+      user: req.user,
+    });
+    await priceRecord.save();
+
     res.json(item);
   } catch (error) {
-    console.error('Regeneration failed:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Regeneration Error:', error);
+    res.status(500).json({
+      error: 'Failed to regenerate item details. Please check your connection.',
+    });
   }
 });
 
