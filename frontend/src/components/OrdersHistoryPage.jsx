@@ -1,4 +1,4 @@
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Clock, MapPin, ClipboardList, CheckCircle2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,15 +6,19 @@ import Header from "./Header";
 import { t } from "./translations";
 
 import { 
+  groceryApi,
   useGetMeQuery, 
   useLogoutMutation,
   useGetOrdersQuery 
 } from "../store/apiSlice";
+import { clearActiveList } from "../store/cartSlice";
 
 export default function OrdersHistoryPage() {
   const navigate = useNavigate();
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
+
+  const dispatch = useDispatch();
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
@@ -27,9 +31,11 @@ export default function OrdersHistoryPage() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
+    } finally {
+      dispatch(clearActiveList());
+      dispatch(groceryApi.util.resetApiState());
       navigate("/");
     }
   };

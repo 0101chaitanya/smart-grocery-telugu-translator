@@ -8,6 +8,7 @@ import Header from "./Header";
 import { t } from "./translations";
 
 import {
+  groceryApi,
   useGetItemsQuery,
   useLookupItemMutation,
   useGetMeQuery,
@@ -15,10 +16,11 @@ import {
   useRegenerateItemMutation,
   useGetItemTrendsQuery,
 } from "../store/apiSlice";
-import { addToCart } from "../store/cartSlice";
+import { addToCart, clearActiveList } from "../store/cartSlice";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
 
@@ -35,7 +37,6 @@ export default function Dashboard() {
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
-  const dispatch = useDispatch();
 
   const handleLookupAndAdd = async (e) => {
     e.preventDefault();
@@ -66,9 +67,11 @@ export default function Dashboard() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
+    } finally {
+      dispatch(clearActiveList());
+      dispatch(groceryApi.util.resetApiState());
       navigate("/");
     }
   };

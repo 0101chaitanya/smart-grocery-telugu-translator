@@ -10,6 +10,7 @@ import { t } from "./translations";
 import { useState, useEffect } from "react";
 
 import { 
+  groceryApi,
   useGetMeQuery, 
   useLogoutMutation,
   useCreateOrderMutation,
@@ -61,9 +62,11 @@ export default function CheckoutPage() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
+    } finally {
+      dispatch(clearActiveList());
+      dispatch(groceryApi.util.resetApiState());
       navigate("/");
     }
   };

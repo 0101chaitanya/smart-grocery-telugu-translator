@@ -8,6 +8,7 @@ import { t } from "./translations";
 import { useState, useMemo } from "react";
 
 import { 
+  groceryApi,
   useGetMeQuery, 
   useLogoutMutation,
   useGetListsQuery,
@@ -52,9 +53,11 @@ export default function CartView() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
+    } finally {
+      dispatch(clearActiveList());
+      dispatch(groceryApi.util.resetApiState());
       navigate("/");
     }
   };
