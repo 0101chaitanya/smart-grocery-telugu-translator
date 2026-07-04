@@ -1,5 +1,5 @@
 import { useSelector } from "react-redux";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Clock, MapPin, ClipboardList, CheckCircle2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "./Header";
@@ -12,6 +12,7 @@ import {
 } from "../store/apiSlice";
 
 export default function OrdersHistoryPage() {
+  const navigate = useNavigate();
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
 
@@ -26,10 +27,10 @@ export default function OrdersHistoryPage() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      window.location.href = "/";
+      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
-      window.location.href = "/";
+      navigate("/");
     }
   };
 

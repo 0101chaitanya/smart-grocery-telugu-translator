@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { Search, Plus, PlusCircle, Package, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import {
 import { addToCart } from "../store/cartSlice";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
 
@@ -64,10 +66,10 @@ export default function Dashboard() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      window.location.href = "/";
+      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
-      window.location.href = "/";
+      navigate("/");
     }
   };
 

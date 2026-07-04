@@ -61,10 +61,10 @@ export default function CheckoutPage() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      window.location.href = "/";
+      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
-      window.location.href = "/";
+      navigate("/");
     }
   };
 

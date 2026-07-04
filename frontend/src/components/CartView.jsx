@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from "react-redux";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShoppingCart, Package, Trash2, ArrowLeft, Save, FolderOpen, RefreshCw, Edit2, CreditCard, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
 import { updateQuantity, removeFromCart, loadCart, clearActiveList, updateActiveListName } from "../store/cartSlice";
 
 export default function CartView() {
+  const navigate = useNavigate();
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
   
@@ -51,10 +52,10 @@ export default function CartView() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      window.location.href = "/";
+      navigate("/");
     } catch (err) {
       console.error("Logout failed:", err);
-      window.location.href = "/";
+      navigate("/");
     }
   };
 
