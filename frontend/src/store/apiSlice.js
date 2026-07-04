@@ -6,7 +6,7 @@ export const groceryApi = createApi({
     baseUrl: import.meta.env.VITE_BACKEND_URL,
     credentials: "include", // Crucial: Automatically sends/receives session cookies
   }),
-  tagTypes: ["Item", "User"],
+  tagTypes: ["Item", "User", "List"],
   endpoints: (builder) => ({
     // A. Check auth status
     getMe: builder.query({
@@ -42,6 +42,33 @@ export const groceryApi = createApi({
       }),
       invalidatesTags: ["Item"],
     }),
+    getLists: builder.query({
+      query: () => "/lists",
+      providesTags: ["List"],
+    }),
+    createList: builder.mutation({
+      query: (newList) => ({
+        url: "/lists",
+        method: "POST",
+        body: newList,
+      }),
+      invalidatesTags: ["List"],
+    }),
+    deleteList: builder.mutation({
+      query: (id) => ({
+        url: `/lists/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["List"],
+    }),
+    updateList: builder.mutation({
+      query: ({ id, listData }) => ({
+        url: `/lists/${id}`,
+        method: "PUT",
+        body: listData,
+      }),
+      invalidatesTags: ["List"],
+    }),
   }),
 });
 
@@ -51,4 +78,8 @@ export const {
   useGetItemsQuery,
   useLookupItemMutation,
   useRegenerateItemMutation,
+  useGetListsQuery,
+  useCreateListMutation,
+  useDeleteListMutation,
+  useUpdateListMutation,
 } = groceryApi;

@@ -9,6 +9,7 @@ import mongoose from 'mongoose'; // Re-added
 import './config/passport.js';
 import itemsRouter from './routes/itemRoutes.js';
 import authRouter from './routes/authRoutes.js';
+import listRouter from './routes/listRoutes.js';
 
 dotenv.config();
 
@@ -55,7 +56,7 @@ app.use(passport.session());
 // Mount routes
 app.use('/api/auth', authRouter);
 app.use('/api/items', itemsRouter);
-
+app.use('/api/lists', listRouter);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'active',

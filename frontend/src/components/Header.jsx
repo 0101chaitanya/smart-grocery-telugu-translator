@@ -1,15 +1,17 @@
 import { Link } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { Globe, ShoppingCart, LogOut, Sun, Moon } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { Globe, ShoppingCart, LogOut, Sun, Moon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toogleLanguage } from "../store/cartSlice";
+import { toogleLanguage, clearActiveList } from "../store/cartSlice";
 import { t } from "./translations";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function Header({ lang, userData, handleLogout, cartCount }) {
   const dispatch = useDispatch();
 
-  // Track state of current theme
+  // Read active list name from Redux
+  const activeListName = useSelector((state) => state.cartState.activeListName);
+
   const [isDark, setIsDark] = useState(
     document.documentElement.classList.contains("dark"),
   );
@@ -31,14 +33,33 @@ export default function Header({ lang, userData, handleLogout, cartCount }) {
     <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b border-border z-50 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="hover:opacity-90">
-          {/* Brand Logo with a clean gradient */}
           <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">
             {t[lang].title}
           </h1>
-          <p className="text-xs text-muted-foreground">{t[lang].subtitle}</p>
+          {/* Dynamically render editing badge if a saved list is loaded */}
+          {activeListName ? (
+            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">
+              Editing: {activeListName}
+            </span>
+          ) : (
+            <p className="text-xs text-muted-foreground">{t[lang].subtitle}</p>
+          )}
         </Link>
 
         <div className="flex items-center gap-3">
+          {/* Button to start a fresh list */}
+          {activeListName && (
+            <Button
+              onClick={() => dispatch(clearActiveList())}
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-full text-xs text-muted-foreground hover:text-foreground gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New List
+            </Button>
+          )}
+
           {/* User Profile */}
           {userData?.user && (
             <div className="flex items-center gap-2 border-r border-border pr-4">
@@ -46,11 +67,10 @@ export default function Header({ lang, userData, handleLogout, cartCount }) {
                 <img
                   src={userData.user.avatar}
                   alt={userData.user.name}
-                  referrerPolicy="no-referrer" /* Prevents Google from blocking the image request */
+                  referrerPolicy="no-referrer"
                   className="w-8 h-8 rounded-full border border-border"
                 />
               ) : (
-                /* Fallback Circle with first letter of User's Name */
                 <div className="w-8 h-8 rounded-full border border-border bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
                   {userData.user.name.charAt(0).toUpperCase()}
                 </div>

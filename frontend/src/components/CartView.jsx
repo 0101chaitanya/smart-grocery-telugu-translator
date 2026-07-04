@@ -1,26 +1,128 @@
 import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
-import { ShoppingCart, Package, Trash2, ArrowLeft } from "lucide-react";
+import {
+  ShoppingCart,
+  Package,
+  Trash2,
+  ArrowLeft,
+  Save,
+  FolderOpen,
+  RefreshCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Header from "./Header";
 import { t } from "./translations";
+import { useState } from "react";
 
-import { useGetMeQuery, useLogoutMutation } from "../store/apiSlice";
-import { updateQuantity, removeFromCart } from "../store/cartSlice";
+import {
+  useGetMeQuery,
+  useLogoutMutation,
+  useGetListsQuery,
+  useCreateListMutation,
+  useDeleteListMutation,
+  useUpdateListMutation,
+} from "../store/apiSlice";
+import {
+  updateQuantity,
+  removeFromCart,
+  loadCart,
+  clearActiveList,
+} from "../store/cartSlice";
 
 export default function CartView() {
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
+
+  // Read active list state from Redux
+  const activeListId = useSelector((state) => state.cartState.activeListId);
+  const activeListName = useSelector((state) => state.cartState.activeListName);
+
   const dispatch = useDispatch();
+
+  const [listName, setListName] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
+
+  // Saved Lists Hooks
+  const { data: savedLists = [], isLoading: isLoadingLists } =
+    useGetListsQuery();
+  const [createList, { isLoading: isSavingList }] = useCreateListMutation();
+  const [deleteList] = useDeleteListMutation();
+  const [updateList, { isLoading: isUpdatingList }] = useUpdateListMutation();
 
   const handleLogout = async () => {
     try {
       await logout().unwrap();
     } catch (err) {
       console.error("Logout failed:", err);
+    }
+  };
+
+  const handleSaveNewList = async (e) => {
+    e.preventDefault();
+    setSaveError("");
+    if (!listName.trim()) return;
+
+    try {
+      const newList = await createList({
+        name: listName.trim(),
+        items: cart,
+      }).unwrap();
+
+      // Track this newly created list as the active one
+      dispatch(loadCart(newList));
+      setListName("");
+    } catch (err) {
+      setSaveError(err.data?.error || "Failed to save grocery list.");
+    }
+  };
+
+  const handleUpdateList = async () => {
+    setSaveError("");
+    try {
+      await updateList({
+        id: activeListId,
+        listData: { items: cart },
+      }).unwrap();
+    } catch (err) {
+      setSaveError(err.data?.error || "Failed to update grocery list.");
+    }
+  };
+
+  const handleLoadList = (savedList) => {
+    // Format list items back to cart shape
+    const cartItems = savedList.items
+      .map((entry) => {
+        if (!entry.item) return null;
+        return {
+          ...entry.item,
+          quantity: entry.quantity,
+        };
+      })
+      .filter(Boolean);
+
+    // Dispatch both cart items and active list info to Redux
+    dispatch(
+      loadCart({
+        items: cartItems,
+        _id: savedList._id,
+        name: listName || savedList.name,
+      }),
+    );
+  };
+
+  const handleDeleteList = async (id) => {
+    try {
+      await deleteList(id).unwrap();
+      // If we deleted the list we were editing, clear current editing status
+      if (activeListId === id) {
+        dispatch(clearActiveList());
+      }
+    } catch (err) {
+      console.error("Delete list failed:", err);
     }
   };
 
@@ -41,7 +143,7 @@ export default function CartView() {
         cartCount={totalCartCount}
       />
 
-      <main className="max-w-2xl mx-auto px-4 py-8 space-y-4">
+      <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <Link
           to="/"
           className="inline-flex items-center text-sm font-semibold text-muted-foreground hover:text-foreground transition gap-2"
@@ -50,11 +152,12 @@ export default function CartView() {
           {t[lang].backToCatalog}
         </Link>
 
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-[400px]">
+        {/* Section 1: Active Staged List */}
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-[300px]">
           <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
             <ShoppingCart className="w-5 h-5 text-foreground" />
             <h2 className="font-bold text-foreground text-lg">
-              {t[lang].cart}
+              {activeListName ? `Staged: ${activeListName}` : t[lang].cart}
             </h2>
             <span className="ml-auto bg-muted text-muted-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full">
               {totalCartCount} items
@@ -67,7 +170,7 @@ export default function CartView() {
               <p className="text-sm">{t[lang].cartEmpty}</p>
             </div>
           ) : (
-            <div className="space-y-4 flex-1">
+            <div className="space-y-4 flex-1 mb-6">
               {cart.map((entry) => (
                 <div
                   key={entry._id}
@@ -78,6 +181,7 @@ export default function CartView() {
                       <img
                         src={entry.imageUrl}
                         alt={getItemNameDisplay(entry)}
+                        referrerPolicy="no-referrer"
                         className="w-10 h-10 rounded object-cover border border-border"
                       />
                     )}
@@ -131,6 +235,133 @@ export default function CartView() {
                       className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Saving / Updating Form */}
+          {cart.length > 0 && (
+            <div className="border-t border-border pt-4">
+              {saveError && (
+                <p className="text-xs text-red-500 bg-red-50/10 p-2 mb-3 rounded border border-red-500/20">
+                  {saveError}
+                </p>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
+                {/* 1. If currently editing a list, show "Update" button */}
+                {activeListId && (
+                  <Button
+                    onClick={handleUpdateList}
+                    disabled={isUpdatingList}
+                    className="gap-2 font-semibold flex-1"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${isUpdatingList ? "animate-spin" : ""}`}
+                    />
+                    Update "{activeListName}"
+                  </Button>
+                )}
+
+                {/* 2. Save as new list option */}
+                <form
+                  onSubmit={handleSaveNewList}
+                  className="flex gap-2 flex-[2] w-full"
+                >
+                  <Input
+                    type="text"
+                    placeholder={
+                      activeListId
+                        ? "Save copy as..."
+                        : t[lang].saveListPlaceholder
+                    }
+                    value={listName}
+                    onChange={(e) => setListName(e.target.value)}
+                    required
+                    className="flex-1 bg-background text-foreground border-border"
+                  />
+                  <Button
+                    type="submit"
+                    disabled={isSavingList}
+                    variant={activeListId ? "outline" : "default"}
+                    className="gap-2 font-semibold"
+                  >
+                    <Save className="w-4 h-4" />
+                    {activeListId ? "Save Copy" : t[lang].saveListButton}
+                  </Button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section 2: Saved Lists View */}
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+          <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
+            <FolderOpen className="w-5 h-5 text-foreground" />
+            <h3 className="font-bold text-foreground text-lg">
+              {t[lang].savedListsHeading}
+            </h3>
+          </div>
+
+          {isLoadingLists ? (
+            <div className="text-center py-6 text-muted-foreground text-sm">
+              Loading lists...
+            </div>
+          ) : savedLists.length === 0 ? (
+            <p className="text-center py-6 text-sm text-muted-foreground">
+              {t[lang].noSavedLists}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {savedLists.map((list) => (
+                <div
+                  key={list._id}
+                  className={`p-4 border rounded-xl flex items-center justify-between hover:shadow-sm transition ${
+                    activeListId === list._id
+                      ? "border-primary bg-primary/5 dark:bg-primary/5"
+                      : "border-border bg-muted/20"
+                  }`}
+                >
+                  <div>
+                    <h4 className="font-bold text-foreground flex items-center gap-2">
+                      {list.name}
+                      {activeListId === list._id && (
+                        <span className="text-[9px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-bold uppercase">
+                          Staged
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {list.items.length} {t[lang].listItemsCount} • Saved on{" "}
+                      {new Date(list.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {/* Load Saved List */}
+                    <Button
+                      size="sm"
+                      variant={
+                        activeListId === list._id ? "default" : "outline"
+                      }
+                      onClick={() => handleLoadList(list)}
+                      className="border-border text-foreground hover:bg-muted"
+                    >
+                      {t[lang].loadList}
+                    </Button>
+
+                    {/* Delete Saved List */}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDeleteList(list._id)}
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
