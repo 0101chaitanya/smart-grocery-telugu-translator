@@ -1,31 +1,43 @@
 import mongoose from 'mongoose';
 
-const localizationSchema = new mongoose.Schema({
-  languageCode: { 
-    type: String, 
-    required: true 
+const localizationSchema = new mongoose.Schema(
+  {
+    languageCode: {
+      type: String,
+      required: true,
+    },
+    names: [
+      {
+        type: String,
+        required: true,
+      },
+    ],
   },
-  names: [{ 
-    type: String, 
-    required: true 
-  }]
-}, { _id: false });
+  { _id: false }
+);
 
-const itemSchema = new mongoose.Schema({
-  category: { 
-    type: String, 
-    enum: ['Groceries', 'Vegetables', 'Fruits', 'Spices', 'Others'], 
-    required: true 
+const itemSchema = new mongoose.Schema(
+  {
+    category: {
+      type: String,
+      enum: ['Groceries', 'Vegetables', 'Fruits', 'Spices', 'Others'],
+      required: true,
+    },
+    defaultUnit: {
+      type: String,
+      enum: ['kg', 'g', 'L', 'ml', 'pcs', 'pack'],
+      default: 'kg',
+    },
+    translations: [localizationSchema],
+    // Field added to store AI stock image URLs
+    imageUrl: {
+      type: String,
+    },
   },
-  defaultUnit: { 
-    type: String, 
-    enum: ['kg', 'g', 'L', 'ml', 'pcs', 'pack'], 
-    default: 'kg' 
-  },
-  translations: [localizationSchema]
-}, { 
-  timestamps: true 
-});
+  {
+    timestamps: true,
+  }
+);
 
 itemSchema.index({ 'translations.names': 'text' });
 

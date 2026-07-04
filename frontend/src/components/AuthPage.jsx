@@ -2,40 +2,24 @@ import { useSelector, useDispatch } from "react-redux";
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toogleLanguage } from "../store/cartSlice";
-
-const t = {
-  en: {
-    title: "Mana Grocery Tracker",
-    subtitle: "Manage your shopping lists bilingually in English & Telugu",
-    welcome: "Welcome to Mana Grocery Tracker",
-    description:
-      "Sign in with your Google account to create, manage, and track grocery prices across India.",
-    button: "Sign in with Google",
-    langButton: "తెలుగు",
-  },
-  te: {
-    title: "మన గ్రోసరీ ట్రాకర్",
-    subtitle: "ఇంగ్లీష్ మరియు తెలుగులో మీ షాపింగ్ లిస్ట్‌లను మేనేజ్ చేయండి",
-    welcome: "మన గ్రోసరీ ట్రాకర్‌కు స్వాగతం",
-    description:
-      "భారతదేశంలో గ్రోసరీ ధరలను సృష్టించడానికి, నిర్వహించడానికి మరియు ట్రాక్ చేయడానికి మీ గూగుల్ ఖాతాతో లాగిన్ చేయండి.",
-    button: "గూగుల్ ద్వారా సైన్ ఇన్ అవ్వండి",
-    langButton: "English",
-  },
-};
+import { t } from "./translations";
 
 export default function AuthPage() {
   const dispatch = useDispatch();
   const lang = useSelector((state) => state.cartState.lang);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-mono">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between font-mono transition-colors duration-200">
       {/* Top Header with Language Toggle */}
+
+      {/* Brand title in Login Header */}
       <header className="p-4 flex justify-between items-center max-w-7xl w-full mx-auto">
-        <h1 className="text-xl font-bold text-slate-800">{t[lang].title}</h1>
+        <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">
+          {t[lang].title}
+        </h1>
         <Button
           onClick={() => dispatch(toogleLanguage())}
-          className="rounded-full gap-2"
+          className="rounded-full gap-2 border-border bg-card text-foreground"
           variant="outline"
         >
           <Globe className="w-4 h-4" />
@@ -45,12 +29,12 @@ export default function AuthPage() {
 
       {/* Main Login Card */}
       <main className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full text-center space-y-6">
+        <div className="bg-card p-8 rounded-2xl border border-border shadow-sm max-w-md w-full text-center space-y-6">
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-slate-800">
+            <h2 className="text-2xl font-bold text-foreground">
               {t[lang].welcome}
             </h2>
-            <p className="text-sm text-slate-500 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {t[lang].description}
             </p>
           </div>
@@ -86,7 +70,7 @@ export default function AuthPage() {
       </main>
 
       {/* Footer */}
-      <footer className="p-4 text-center text-xs text-slate-400">
+      <footer className="p-4 text-center text-xs text-muted-foreground">
         &copy; 2026 Mana Grocery Tracker. Limited to India.
       </footer>
     </div>

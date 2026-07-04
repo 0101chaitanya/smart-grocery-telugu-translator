@@ -138,11 +138,24 @@ Return ONLY a strict JSON object with this shape:
     // Parse the generated schema from LLM
     const generatedData = extractJSON(rawContent);
 
-    // Save the new item in the database
+    // Extract the primary English name for the AI image prompt
+    const englishTranslation = generatedData.translations.find(
+      (t) => t.languageCode === 'en'
+    );
+    const primaryEnglishName =
+      englishTranslation && englishTranslation.names.length > 0
+        ? englishTranslation.names[0]
+        : trimmedName;
+
+    // Construct the free AI image generation prompt URL
+    const imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
+
+    // Save the new item in the database with the AI Image URL
     const newItem = new Item({
       category: generatedData.category || 'Others',
       defaultUnit: generatedData.defaultUnit || 'kg',
       translations: generatedData.translations,
+      imageUrl: imageUrl, // Added field
     });
 
     await newItem.save();
