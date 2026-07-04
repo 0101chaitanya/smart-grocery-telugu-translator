@@ -1,9 +1,16 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
+const getBaseUrl = () => {
+  if (import.meta.env.PROD) {
+    return "/api"; // Use relative routing in production for Vercel edge proxying
+  }
+  return import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api";
+};
+
 export const groceryApi = createApi({
   reducerPath: "groceryApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api",
+    baseUrl: getBaseUrl(),
     credentials: "include", // Crucial: Automatically sends/receives session cookies
   }),
   tagTypes: ["Item", "User", "List", "Order"],
