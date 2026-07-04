@@ -1,11 +1,12 @@
 import express from 'express';
 import Item from '../models/Item.js';
-import { protect } from '../middleware/authMiddleware.js';
 import PriceRecord from '../models/PriceRecord.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.use(protect); // check this later
+// Gated behind authentication
+router.use(protect);
 
 // 1. GET /api/items - Fetch all items (with dynamic price aggregations)
 router.get('/', async (req, res) => {
@@ -63,26 +64,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Helper to safely extract JSON from LLM markdown fences
 function extractJSON(text) {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    return JSON.parse(jsonMatch[0]);
-  }
-  return JSON.parse(text);
+  return jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
 }
-
-// Keep the standard post route as backup
-router.post('/', async (req, res) => {
-  try {
-    const { category, defaultUnit, translations } = req.body;
-    const newItem = new Item({ category, defaultUnit, translations });
-    await newItem.save();
-    res.status(201).json(newItem);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
 
 // 2. POST /api/items/lookup - Search DB or auto-generate transliterations
 router.post('/lookup', async (req, res) => {
@@ -168,7 +153,6 @@ Return ONLY a strict JSON object with this shape:
         'API translation failed, applying graceful fallback:',
         apiError.message
       );
-      // Fallback object so the application doesn't fail
       generatedData = {
         category: 'Others',
         defaultUnit: 'kg',
@@ -180,7 +164,6 @@ Return ONLY a strict JSON object with this shape:
       };
     }
 
-    // Extract English name for AI image
     const englishTranslation = generatedData.translations.find(
       (t) => t.languageCode === 'en'
     );
@@ -301,7 +284,6 @@ Return ONLY a strict JSON object with this shape:
     try {
       generatedData = extractJSON(rawContent);
     } catch (parseError) {
-      // Graceful error return if the AI output is corrupted
       return res.status(422).json({
         error:
           'Received corrupted data from translation service. Please try again.',

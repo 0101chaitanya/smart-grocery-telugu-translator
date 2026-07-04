@@ -93,25 +93,7 @@ export default function CartView() {
   };
 
   const handleLoadList = (savedList) => {
-    // Format list items back to cart shape
-    const cartItems = savedList.items
-      .map((entry) => {
-        if (!entry.item) return null;
-        return {
-          ...entry.item,
-          quantity: entry.quantity,
-        };
-      })
-      .filter(Boolean);
-
-    // Dispatch both cart items and active list info to Redux
-    dispatch(
-      loadCart({
-        items: cartItems,
-        _id: savedList._id,
-        name: listName || savedList.name,
-      }),
-    );
+    dispatch(loadCart(savedList));
   };
 
   const handleDeleteList = async (id) => {

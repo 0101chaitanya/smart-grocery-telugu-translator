@@ -35,12 +35,23 @@ const cartSlice = createSlice({
     removeFromCart: (state, action) => {
       state.cart = state.cart.filter((c) => c._id !== action.payload);
     },
-    // Loads list items AND saves the active list details in Redux
+    // Loads list items and automatically flattens DB nested items if present
     loadCart: (state, action) => {
-      state.cart = action.payload.items;
+      state.cart = action.payload.items.map((entry) => {
+        // If the item properties are nested inside a database 'item' field
+        if (entry.item) {
+          return {
+            ...entry.item,
+            quantity: entry.quantity,
+          };
+        }
+        // Otherwise, return as-is if already in flat cart format
+        return entry;
+      });
       state.activeListId = action.payload._id;
       state.activeListName = action.payload.name;
     },
+
     // Resets loaded list tracking (for creating new lists)
     clearActiveList: (state) => {
       state.cart = [];

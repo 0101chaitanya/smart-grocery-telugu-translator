@@ -18,7 +18,7 @@ const app = express();
 // Configure CORS for Session Cookies
 app.use(
   cors({
-    origin: 'http://localhost:5173', // Frontend React
+    origin: process.env.CLIENT_URL, // Frontend React
     credentials: true, // Crucial for cookies to transfer
   })
 );
