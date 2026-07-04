@@ -64,8 +64,10 @@ export default function Dashboard() {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
+      window.location.href = "/";
     } catch (err) {
       console.error("Logout failed:", err);
+      window.location.href = "/";
     }
   };
 
