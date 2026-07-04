@@ -13,11 +13,15 @@ router.get(
 // 2. GET /api/auth/google/callback - Receives redirect from Google
 router.get(
   '/google/callback',
-  passport.authenticate('google', {
-    failureRedirect: 'http://localhost:5173/login?error=failed',
-  }),
+  (req, res, next) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    passport.authenticate('google', {
+      failureRedirect: `${clientUrl}/?error=failed`,
+    })(req, res, next);
+  },
   (req, res) => {
-    res.redirect('http://localhost:5173/');
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    res.redirect(`${clientUrl}/`);
   }
 );
 

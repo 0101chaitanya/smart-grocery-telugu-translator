@@ -14,7 +14,7 @@ export default function ProtectedRoute({ children }) {
 
   // Redirect to login if user is not logged in or endpoint returns error
   if (isError || !data?.user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;

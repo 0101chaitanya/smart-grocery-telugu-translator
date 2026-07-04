@@ -5,6 +5,7 @@ import Dashboard from "./components/Dashboard";
 import CartView from "./components/CartView";
 import CheckoutPage from "./components/CheckoutPage";
 import OrdersHistoryPage from "./components/OrdersHistoryPage";
+import { useGetMeQuery } from "./store/apiSlice";
 
 // Initialize theme based on user's preference or localStorage settings
 if (
@@ -17,19 +18,32 @@ if (
   document.documentElement.classList.remove("dark");
 }
 
+function RootRoute() {
+  const { data, isLoading } = useGetMeQuery();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs text-muted-foreground font-semibold">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (data?.user) {
+    return <Dashboard />;
+  }
+
+  return <AuthPage />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<AuthPage />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<RootRoute />} />
         <Route
           path="/cart"
           element={
