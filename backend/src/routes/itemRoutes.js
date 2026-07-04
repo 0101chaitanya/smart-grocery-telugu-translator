@@ -74,65 +74,42 @@ Return ONLY a strict JSON object with this shape:
   ]
 }`;
 
-    // List of models to try in order
-    const modelsToTry = [
-      'google/gemma-4-26b-a4b-it:free',
-      'google/gemma-4-31b-it:free',
-    ];
+    console.log(
+      `Attempting translation using auto-routed free model: openrouter/free`
+    );
 
-    let openRouterResponse = null;
-    let lastError = null;
-
-    // Try models sequentially until one succeeds
-    for (const model of modelsToTry) {
-      try {
-        console.log(`Attempting translation using model: ${model}`);
-        const response = await fetch(
-          'https://openrouter.ai/api/v1/chat/completions',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${openRouterApiKey}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'http://localhost:3000',
-              'X-Title': 'Mana Grocery Tracker',
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'Mana Grocery Tracker',
+        },
+        body: JSON.stringify({
+          model: 'openrouter/free', // Automatically routes to any available free model
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: `Translate the grocery item name: "${trimmedName}"`,
             },
-            body: JSON.stringify({
-              model: model,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                {
-                  role: 'user',
-                  content: `Translate the grocery item name: "${trimmedName}"`,
-                },
-              ],
-              response_format: { type: 'json_object' }, // Guides model to return valid JSON
-            }),
-          }
-        );
-
-        if (response.ok) {
-          openRouterResponse = response;
-          break; // Stop loop on success
-        } else {
-          const errText = await response.text();
-          throw new Error(
-            `Model ${model} returned status ${response.status}: ${errText}`
-          );
-        }
-      } catch (err) {
-        console.warn(`Failed with model ${model}:`, err.message);
-        lastError = err;
+          ],
+          response_format: { type: 'json_object' }, // Guides the selected model to return valid JSON
+        }),
       }
-    }
+    );
 
-    if (!openRouterResponse) {
+    if (!response.ok) {
+      const errText = await response.text();
       throw new Error(
-        `All translation models failed. Last error: ${lastError ? lastError.message : 'Unknown error'}`
+        `OpenRouter API returned status ${response.status}: ${errText}`
       );
     }
 
-    const result = await openRouterResponse.json();
+    const result = await response.json();
     const rawContent = result.choices[0].message.content;
 
     // Parse the generated schema from LLM
@@ -175,6 +152,106 @@ router.post('/', async (req, res) => {
     res.status(201).json(newItem);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+// 3. PUT /api/items/:id/regenerate - Re-trigger LLM translation and image generation
+router.put('/:id/regenerate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const item = await Item.findById(id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    // Determine what English name to lookup
+    const englishTranslation = item.translations.find(
+      (t) => t.languageCode === 'en'
+    );
+    const lookupName =
+      englishTranslation && englishTranslation.names.length > 0
+        ? englishTranslation.names[0]
+        : item.translations[0]?.names[0];
+
+    if (!lookupName) {
+      return res.status(400).json({ error: 'Could not resolve item name' });
+    }
+
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterApiKey) {
+      return res.status(500).json({ error: 'OpenRouter API Key is missing' });
+    }
+
+    const systemPrompt = `You are an AI assistant for a grocery translation app in India.
+Translate the input name into English and Telugu. Provide common Telugu regional variations (e.g. ["ఉల్లిపాయ", "ఎర్రగడ్డ"]).
+Detect the correct category (Groceries, Vegetables, Fruits, Spices, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
+Return ONLY a strict JSON object with this shape:
+{
+  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Others",
+  "defaultUnit": "kg" | "g" | "L" | "ml" | "pcs" | "pack",
+  "translations": [
+    { "languageCode": "en", "names": ["Onion", "Red Onion"] },
+    { "languageCode": "te", "names": ["ఉల్లిపాయ", "ఎర్రగడ్డ"] }
+  ]
+}`;
+
+    // Request new translations from auto-routed free model
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'Mana Grocery Tracker',
+        },
+        body: JSON.stringify({
+          model: 'openrouter/free',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: `Translate the grocery item name: "${lookupName}"`,
+            },
+          ],
+          response_format: { type: 'json_object' },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const result = await response.json();
+    const rawContent = result.choices[0].message.content;
+    const generatedData = extractJSON(rawContent);
+
+    // Get English name for new image
+    const newEnglishTranslation = generatedData.translations.find(
+      (t) => t.languageCode === 'en'
+    );
+    const newEnglishName =
+      newEnglishTranslation && newEnglishTranslation.names.length > 0
+        ? newEnglishTranslation.names[0]
+        : lookupName;
+
+    // Attach a random seed parameter to bypass cache and paint a completely new image
+    const randomSeed = Math.floor(Math.random() * 1000000);
+    const imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(newEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true&seed=${randomSeed}`;
+
+    // Update document in MongoDB
+    item.category = generatedData.category || 'Others';
+    item.defaultUnit = generatedData.defaultUnit || 'kg';
+    item.translations = generatedData.translations;
+    item.imageUrl = imageUrl;
+
+    await item.save();
+    res.json(item);
+  } catch (error) {
+    console.error('Regeneration failed:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

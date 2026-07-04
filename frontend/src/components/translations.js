@@ -11,6 +11,8 @@ export const t = {
     inputPlaceholder: "e.g. Onion or టమోటా",
     submit: "Lookup & Add",
     translating: "Translating...",
+    fetchAgain: "Fetch Again",
+    fetching: "Fetching...",
     categories: {
       Groceries: "Groceries",
       Vegetables: "Vegetables",
@@ -37,6 +39,8 @@ export const t = {
     inputPlaceholder: "ఉదా: Onion లేదా టమోటా",
     submit: "అనువదించి జోడించు",
     translating: "అనువదిస్తోంది...",
+    fetchAgain: "తిరిగి తీసుకురండి",
+    fetching: "తీసుకువస్తున్నాను...",
     categories: {
       Groceries: "కిరాణా సరుకులు",
       Vegetables: "కూరగాయలు",

@@ -35,6 +35,13 @@ export const groceryApi = createApi({
       }),
       invalidatesTags: ["Item"],
     }),
+    regenerateItem: builder.mutation({
+      query: (id) => ({
+        url: `/items/${id}/regenerate`,
+        method: "PUT",
+      }),
+      invalidatesTags: ["Item"],
+    }),
   }),
 });
 
@@ -43,4 +50,5 @@ export const {
   useLogoutMutation,
   useGetItemsQuery,
   useLookupItemMutation,
+  useRegenerateItemMutation,
 } = groceryApi;

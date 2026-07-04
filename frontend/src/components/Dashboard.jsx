@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Search, Plus, PlusCircle, Package } from "lucide-react";
+import { Search, Plus, PlusCircle, Package, RefreshCw } from "lucide-react"; // Import RefreshCw
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "./Header";
@@ -11,22 +11,9 @@ import {
   useLookupItemMutation,
   useGetMeQuery,
   useLogoutMutation,
+  useRegenerateItemMutation, // Import hook
 } from "../store/apiSlice";
 import { addToCart } from "../store/cartSlice";
-
-// Color codes for item categories
-const categoryColors = {
-  Vegetables:
-    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
-  Fruits:
-    "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
-  Groceries:
-    "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
-  Spices:
-    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
-  Others:
-    "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
-};
 
 export default function Dashboard() {
   const lang = useSelector((state) => state.cartState.lang);
@@ -36,8 +23,12 @@ export default function Dashboard() {
   const [itemInput, setItemInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Track which item is currently regenerating to show independent spinner loading states
+  const [regeneratingId, setRegeneratingId] = useState(null);
+
   const { data: items = [], isLoading } = useGetItemsQuery(search);
   const [lookupItem, { isLoading: isLookingUp }] = useLookupItemMutation();
+  const [regenerateItem] = useRegenerateItemMutation(); // Mutation trigger
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
@@ -55,6 +46,17 @@ export default function Dashboard() {
       setErrorMsg(
         err.data?.error || "Failed to search or auto-translate this item.",
       );
+    }
+  };
+
+  const handleRegenerate = async (id) => {
+    setRegeneratingId(id);
+    try {
+      await regenerateItem(id).unwrap();
+    } catch (err) {
+      console.error("Regeneration failed:", err);
+    } finally {
+      setRegeneratingId(null);
     }
   };
 
@@ -81,6 +83,19 @@ export default function Dashboard() {
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const categoryColors = {
+    Vegetables:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+    Fruits:
+      "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
+    Groceries:
+      "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
+    Spices:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+    Others:
+      "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-200">
@@ -154,6 +169,7 @@ export default function Dashboard() {
                     <img
                       src={item.imageUrl}
                       alt={getItemNameDisplay(item)}
+                      referrerPolicy="no-referrer"
                       className="w-16 h-16 rounded-lg object-cover bg-background border border-border shrink-0 shadow-sm"
                     />
                   ) : (
@@ -163,7 +179,6 @@ export default function Dashboard() {
                   )}
 
                   <div>
-                    {/* Dynamic Category Badges */}
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${categoryColors[item.category] || categoryColors.Others}`}
                     >
@@ -182,13 +197,32 @@ export default function Dashboard() {
                   <span className="text-xs text-muted-foreground">
                     Unit: {item.defaultUnit}
                   </span>
-                  <Button
-                    size="sm"
-                    onClick={() => dispatch(addToCart(item))}
-                    className="h-8 gap-1.5 font-semibold"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add
-                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    {/* Fetch Again Button */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={regeneratingId === item._id}
+                      onClick={() => handleRegenerate(item._id)}
+                      className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 ${regeneratingId === item._id ? "animate-spin text-primary" : ""}`}
+                      />
+                      {regeneratingId === item._id
+                        ? t[lang].fetching
+                        : t[lang].fetchAgain}
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      onClick={() => dispatch(addToCart(item))}
+                      className="h-8 gap-1.5 font-semibold"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
