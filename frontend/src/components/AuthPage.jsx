@@ -8,7 +8,9 @@ export default function AuthPage() {
   const dispatch = useDispatch();
   const lang = useSelector((state) => state.cartState.lang);
 
-  const googleLoginUrl = `${import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api"}/auth/google`;
+  const googleLoginUrl = import.meta.env.PROD
+    ? "/api/auth/google"
+    : `${import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api"}/auth/google`;
 
   return (
     <div className="min-h-screen relative flex flex-col justify-between font-sans overflow-hidden bg-background text-foreground transition-colors duration-200">
