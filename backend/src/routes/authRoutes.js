@@ -10,7 +10,7 @@ const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL
 const clearCookieOptions = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: isProduction ? 'none' : 'lax',
+  sameSite: 'lax',
   path: '/'
 };
 

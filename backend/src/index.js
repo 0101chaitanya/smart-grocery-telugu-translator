@@ -51,7 +51,7 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax', // 'none' enables cross-domain cookies
+      sameSite: 'lax', // Lax is perfect since Vercel rewrite proxy makes all traffic first-party
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   })
