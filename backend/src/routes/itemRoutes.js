@@ -1,12 +1,13 @@
 import express from 'express';
 import Item from '../models/Item.js';
 import { protect } from '../middleware/authMiddleware.js';
+import PriceRecord from '../models/PriceRecord.js';
 
 const router = express.Router();
 
 router.use(protect); // check this later
 
-// 1. GET /api/items - Fetch all items (searches English & Telugu regional names)
+// 1. GET /api/items - Fetch all items (with dynamic price aggregations)
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
@@ -18,8 +19,45 @@ router.get('/', async (req, res) => {
       };
     }
 
-    const items = await Item.find(query);
-    res.json(items);
+    const items = await Item.find(query).lean(); // Use .lean() to allow editing properties
+
+    // Enrich items with their latest and average logged prices
+    const enrichedItems = await Promise.all(
+      items.map(async (item) => {
+        // A. Dynamic Image fallback
+        if (!item.imageUrl) {
+          const englishTranslation = item.translations.find(
+            (t) => t.languageCode === 'en'
+          );
+          const primaryEnglishName =
+            englishTranslation && englishTranslation.names.length > 0
+              ? englishTranslation.names[0]
+              : 'grocery';
+          item.imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
+        }
+
+        // B. Query Latest Price logged for this item
+        const latestRecord = await PriceRecord.findOne({ item: item._id })
+          .sort({ createdAt: -1 })
+          .select('price');
+
+        // C. Query Average Price logged for this item
+        const avgResult = await PriceRecord.aggregate([
+          { $match: { item: item._id } },
+          { $group: { _id: null, avgPrice: { $avg: '$price' } } },
+        ]);
+
+        item.latestPrice = latestRecord ? latestRecord.price : 0;
+        item.avgPrice =
+          avgResult.length > 0
+            ? Math.round(avgResult[0].avgPrice * 100) / 100
+            : 0;
+
+        return item;
+      })
+    );
+
+    res.json(enrichedItems);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -251,6 +289,29 @@ Return ONLY a strict JSON object with this shape:
     res.json(item);
   } catch (error) {
     console.error('Regeneration failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. POST /api/items/:id/prices - Log a new price point
+router.post('/:id/prices', protect, async (req, res) => {
+  try {
+    const { price } = req.body;
+    if (price === undefined || Number(price) <= 0) {
+      return res
+        .status(400)
+        .json({ error: 'A valid price greater than zero is required' });
+    }
+
+    const newPrice = new PriceRecord({
+      item: req.params.id,
+      price: Number(price),
+      user: req.user,
+    });
+
+    await newPrice.save();
+    res.status(201).json(newPrice);
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
