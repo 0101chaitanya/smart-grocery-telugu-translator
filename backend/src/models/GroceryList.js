@@ -12,6 +12,11 @@ const groceryListItemSchema = new mongoose.Schema(
       required: true,
       default: 1,
     },
+    priceAtSave: {
+      type: Number,
+      required: true,
+      default: 0, // Captures price snapshot at time of list creation
+    },
   },
   { _id: false }
 );

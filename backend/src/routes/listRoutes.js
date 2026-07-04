@@ -5,12 +5,14 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Protect all list routes
 router.use(protect);
 
-// Helper function to enrich list item populated values with current prices
+// Helper function to enrich list item populated values with current prices and total valuations
 const enrichListPrices = async (listDoc) => {
-  const list = listDoc.toObject(); // Convert to plain JS object to allow modifying keys
+  const list = listDoc.toObject();
+
+  let originalValue = 0;
+  let currentValue = 0;
 
   list.items = await Promise.all(
     list.items.map(async (entry) => {
@@ -28,15 +30,24 @@ const enrichListPrices = async (listDoc) => {
           { $group: { _id: null, avgPrice: { $avg: '$price' } } },
         ]);
 
-        entry.item.latestPrice = latestRecord ? latestRecord.price : 0;
+        const latestPrice = latestRecord ? latestRecord.price : 0;
+        entry.item.latestPrice = latestPrice;
         entry.item.avgPrice =
           avgResult.length > 0
             ? Math.round(avgResult[0].avgPrice * 100) / 100
             : 0;
+
+        // Accumulate original cost snapshot vs. current valuation
+        originalValue +=
+          entry.quantity * (entry.priceAtSave || latestPrice || 0);
+        currentValue += entry.quantity * (latestPrice || 0);
       }
       return entry;
     })
   );
+
+  list.originalValue = Math.round(originalValue * 100) / 100;
+  list.currentValue = Math.round(currentValue * 100) / 100;
 
   return list;
 };
@@ -55,7 +66,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 2. POST /api/lists - Create a new saved list
+// 2. POST /api/lists - Create a new saved list (logs current prices)
 router.post('/', async (req, res) => {
   try {
     const { name, items } = req.body;
@@ -66,10 +77,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Cannot save an empty list' });
     }
 
-    const formattedItems = items.map((entry) => ({
-      item: entry._id,
-      quantity: entry.quantity,
-    }));
+    const formattedItems = await Promise.all(
+      items.map(async (entry) => {
+        // Query the latest price logged for this item to preserve snapshot
+        const latestPriceRecord = await PriceRecord.findOne({ item: entry._id })
+          .sort({ createdAt: -1 })
+          .select('price');
+
+        return {
+          item: entry._id,
+          quantity: entry.quantity,
+          priceAtSave: latestPriceRecord ? latestPriceRecord.price : 0,
+        };
+      })
+    );
 
     const newList = new GroceryList({
       name: name.trim(),
@@ -89,7 +110,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 3. PUT /api/lists/:id - Update an existing list (items or name)
+// 3. PUT /api/lists/:id - Update list
 router.put('/:id', async (req, res) => {
   try {
     const { name, items } = req.body;
@@ -106,10 +127,21 @@ router.put('/:id', async (req, res) => {
     }
 
     if (items) {
-      list.items = items.map((entry) => ({
-        item: entry._id,
-        quantity: entry.quantity,
-      }));
+      list.items = await Promise.all(
+        items.map(async (entry) => {
+          const latestPriceRecord = await PriceRecord.findOne({
+            item: entry._id,
+          })
+            .sort({ createdAt: -1 })
+            .select('price');
+
+          return {
+            item: entry._id,
+            quantity: entry.quantity,
+            priceAtSave: latestPriceRecord ? latestPriceRecord.price : 0,
+          };
+        })
+      );
     }
 
     await list.save();

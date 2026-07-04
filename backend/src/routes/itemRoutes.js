@@ -2,13 +2,14 @@ import express from 'express';
 import Item from '../models/Item.js';
 import PriceRecord from '../models/PriceRecord.js';
 import { protect } from '../middleware/authMiddleware.js';
+import mongoose from 'mongoose';
 
 const router = express.Router();
 
 // Gated behind authentication
 router.use(protect);
 
-// 1. GET /api/items - Fetch all items (with dynamic price aggregations)
+// 1. GET /api/items - Fetch all items (with dynamic price aggregates & auto-seeding)
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
@@ -20,9 +21,9 @@ router.get('/', async (req, res) => {
       };
     }
 
-    const items = await Item.find(query).lean(); // Use .lean() to allow editing properties
+    const items = await Item.find(query).lean();
 
-    // Enrich items with their latest and average logged prices
+    // Enrich items with prices and auto-seed history if missing
     const enrichedItems = await Promise.all(
       items.map(async (item) => {
         // A. Dynamic Image fallback
@@ -37,12 +38,39 @@ router.get('/', async (req, res) => {
           item.imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
         }
 
-        // B. Query Latest Price logged for this item
+        // B. Auto-seed history if item has NO price records in MongoDB
+        const hasPrices = await PriceRecord.exists({ item: item._id });
+        if (!hasPrices) {
+          // Generate a realistic base price (randomly between 30 and 80)
+          const basePrice = Math.floor(Math.random() * 50) + 30;
+
+          // Seed 3 historical logs at different days with slight price variations
+          const seeds = [
+            { daysAgo: 3, priceChange: -5 },
+            { daysAgo: 2, priceChange: 5 },
+            { daysAgo: 1, priceChange: 0 },
+          ];
+
+          for (const seed of seeds) {
+            const seedDate = new Date();
+            seedDate.setDate(seedDate.getDate() - seed.daysAgo);
+
+            const seedRecord = new PriceRecord({
+              item: item._id,
+              price: basePrice + seed.priceChange,
+              user: req.user._id, // Tied to logged in user
+              createdAt: seedDate,
+            });
+            await seedRecord.save();
+          }
+        }
+
+        // C. Query Latest Price logged for this item
         const latestRecord = await PriceRecord.findOne({ item: item._id })
           .sort({ createdAt: -1 })
           .select('price');
 
-        // C. Query Average Price logged for this item
+        // D. Query Average Price logged for this item
         const avgResult = await PriceRecord.aggregate([
           { $match: { item: item._id } },
           { $group: { _id: null, avgPrice: { $avg: '$price' } } },
@@ -343,6 +371,46 @@ router.post('/:id/prices', protect, async (req, res) => {
 
     await newPrice.save();
     res.status(201).json(newPrice);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 1.1 GET /api/items/:id/trends - Group and retrieve price logs over Day/Week/Month/Year
+router.get('/:id/trends', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { period } = req.query; // 'day' | 'week' | 'month' | 'year'
+
+    // Set aggregation grouping string pattern based on period
+    let format = '%Y-%m-%d'; // default Day
+    if (period === 'week') format = '%Y-W%V';
+    else if (period === 'month') format = '%Y-%m';
+    else if (period === 'year') format = '%Y';
+
+    const trends = await PriceRecord.aggregate([
+      { $match: { item: new mongoose.Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: { $dateToString: { format: format, date: '$createdAt' } },
+          avgPrice: { $avg: '$price' },
+          minPrice: { $min: '$price' },
+          maxPrice: { $max: '$price' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } }, // Sort chronologically
+    ]);
+
+    const formattedTrends = trends.map((t) => ({
+      label: t._id,
+      avgPrice: Math.round(t.avgPrice * 100) / 100,
+      minPrice: t.minPrice,
+      maxPrice: t.maxPrice,
+      count: t.count,
+    }));
+
+    res.json(formattedTrends);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -77,6 +77,10 @@ export const groceryApi = createApi({
       }),
       invalidatesTags: ["Item"], // Triggers auto-refetch to recalculate averages
     }),
+    getItemTrends: builder.query({
+      query: ({ id, period }) => `/items/${id}/trends?period=${period}`,
+      providesTags: (result, error, { id }) => [{ type: "Item", id }],
+    }),
   }),
 });
 
@@ -91,4 +95,5 @@ export const {
   useDeleteListMutation,
   useUpdateListMutation,
   useLogPriceMutation,
+  useGetItemTrendsQuery,
 } = groceryApi;

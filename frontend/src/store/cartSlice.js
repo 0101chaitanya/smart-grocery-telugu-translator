@@ -58,6 +58,13 @@ const cartSlice = createSlice({
       state.activeListId = null;
       state.activeListName = "";
     },
+    // Updates active list name indicator in real-time if renamed
+    updateActiveListName: (state, action) => {
+      const { id, name } = action.payload;
+      if (state.activeListId === id) {
+        state.activeListName = name;
+      }
+    },
   },
 });
 
@@ -68,6 +75,7 @@ export const {
   removeFromCart,
   loadCart,
   clearActiveList,
+  updateActiveListName,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

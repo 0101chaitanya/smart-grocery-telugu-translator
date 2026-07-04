@@ -12,6 +12,7 @@ import {
   useGetMeQuery,
   useLogoutMutation,
   useRegenerateItemMutation,
+  useGetItemTrendsQuery, // Import trends query hook
 } from "../store/apiSlice";
 import { addToCart } from "../store/cartSlice";
 
@@ -24,6 +25,7 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const [regeneratingId, setRegeneratingId] = useState(null);
+  const [showTrendsId, setShowTrendsId] = useState(null); // Track open trends drawer
 
   const { data: items = [], isLoading } = useGetItemsQuery(search);
   const [lookupItem, { isLoading: isLookingUp }] = useLookupItemMutation();
@@ -234,6 +236,11 @@ export default function Dashboard() {
                         </span>
                       )}
                     </div>
+
+                    {/* Render time-series aggregation price charts */}
+                    {showTrendsId === item._id && (
+                      <ItemTrendsDrawer itemId={item._id} lang={lang} />
+                    )}
                   </div>
 
                   {/* Action Buttons */}
@@ -243,6 +250,24 @@ export default function Dashboard() {
                     </span>
 
                     <div className="flex items-center gap-2">
+                      {/* Price Trends Toggle */}
+                      {item.latestPrice > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setShowTrendsId(
+                              showTrendsId === item._id ? null : item._id,
+                            )
+                          }
+                          className="h-8 text-xs font-semibold text-primary hover:text-primary/80"
+                        >
+                          {showTrendsId === item._id
+                            ? "Hide Trends"
+                            : t[lang].priceTrends}
+                        </Button>
+                      )}
+
                       <Button
                         size="sm"
                         variant="ghost"
@@ -273,6 +298,104 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+// Sub-component: Displays interactive trends chart and period selections
+function ItemTrendsDrawer({ itemId, lang }) {
+  const [period, setPeriod] = useState("day");
+  const { data: trendData = [], isLoading } = useGetItemTrendsQuery({
+    id: itemId,
+    period,
+  });
+
+  const periods = [
+    { key: "day", label: t[lang].dayLabel },
+    { key: "week", label: t[lang].weekLabel },
+    { key: "month", label: t[lang].monthLabel },
+    { key: "year", label: t[lang].yearLabel },
+  ];
+
+  return (
+    <div className="bg-muted/30 border border-border/50 rounded-lg p-3 space-y-3 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-foreground">
+          {t[lang].priceTrends}
+        </span>
+        {/* Period Selector Tabs */}
+        <div className="flex bg-muted rounded p-0.5 border border-border">
+          {periods.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setPeriod(p.key)}
+              className={`text-[9px] px-2 py-0.5 rounded font-bold transition ${
+                period === p.key
+                  ? "bg-card text-foreground shadow-sm animate-in fade-in scale-in-95 duration-100"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="text-[10px] text-center text-muted-foreground py-4">
+          Loading stats...
+        </div>
+      ) : trendData.length === 0 ? (
+        <div className="text-[10px] text-center text-muted-foreground py-4">
+          {t[lang].noTrends}
+        </div>
+      ) : (
+        <div>
+          {/* Dynamic Pure CSS Bar Chart */}
+          {(() => {
+            const maxVal = Math.max(...trendData.map((d) => d.avgPrice), 1);
+            return (
+              <div className="flex items-end justify-between h-20 gap-2 pt-4 border-b border-border/50 mb-2">
+                {trendData.slice(-6).map((data, index) => {
+                  const barHeight = Math.round((data.avgPrice / maxVal) * 100);
+
+                  // Format label dynamically to look neat (shorten date formats)
+                  let displayLabel = data.label;
+                  if (
+                    data.label.includes("-") &&
+                    (period === "day" || period === "month")
+                  ) {
+                    displayLabel = data.label.split("-").slice(1).join("/");
+                  }
+
+                  return (
+                    <div
+                      key={index}
+                      className="flex-1 flex flex-col items-center group relative"
+                    >
+                      {/* Bar columns */}
+                      <div
+                        style={{ height: `${barHeight}%` }}
+                        className="w-full bg-primary/20 hover:bg-primary rounded-t transition-all duration-300 relative"
+                      >
+                        {/* Hover Tooltip */}
+                        <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[9px] py-0.5 px-1.5 rounded shadow border border-border whitespace-nowrap mb-1 transition-opacity duration-150 pointer-events-none font-bold z-10">
+                          ₹{data.avgPrice}
+                        </div>
+                      </div>
+                      {/* Label under bar */}
+                      <span className="text-[8px] text-muted-foreground mt-1 truncate max-w-full font-semibold">
+                        {displayLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }

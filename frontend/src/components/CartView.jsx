@@ -8,7 +8,8 @@ import {
   Save,
   FolderOpen,
   RefreshCw,
-} from "lucide-react";
+  Edit2,
+} from "lucide-react"; // Import Edit2
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "./Header";
@@ -28,13 +29,13 @@ import {
   removeFromCart,
   loadCart,
   clearActiveList,
+  updateActiveListName,
 } from "../store/cartSlice";
 
 export default function CartView() {
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
 
-  // Read active list state from Redux
   const activeListId = useSelector((state) => state.cartState.activeListId);
   const activeListName = useSelector((state) => state.cartState.activeListName);
 
@@ -42,6 +43,10 @@ export default function CartView() {
 
   const [listName, setListName] = useState("");
   const [saveError, setSaveError] = useState("");
+
+  // Rename states
+  const [editingListId, setEditingListId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
@@ -72,7 +77,6 @@ export default function CartView() {
         items: cart,
       }).unwrap();
 
-      // Track this newly created list as the active one
       dispatch(loadCart(newList));
       setListName("");
     } catch (err) {
@@ -92,6 +96,22 @@ export default function CartView() {
     }
   };
 
+  const handleRenameList = async (id) => {
+    if (!renameValue.trim()) return;
+    try {
+      await updateList({
+        id,
+        listData: { name: renameValue.trim() },
+      }).unwrap();
+
+      // Update name badge in header if currently staging this list
+      dispatch(updateActiveListName({ id, name: renameValue.trim() }));
+      setEditingListId(null);
+    } catch (err) {
+      console.error("Rename failed:", err);
+    }
+  };
+
   const handleLoadList = (savedList) => {
     dispatch(loadCart(savedList));
   };
@@ -99,7 +119,6 @@ export default function CartView() {
   const handleDeleteList = async (id) => {
     try {
       await deleteList(id).unwrap();
-      // If we deleted the list we were editing, clear current editing status
       if (activeListId === id) {
         dispatch(clearActiveList());
       }
@@ -135,7 +154,7 @@ export default function CartView() {
         </Link>
 
         {/* Section 1: Active Staged List */}
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-75">
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-[300px]">
           <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
             <ShoppingCart className="w-5 h-5 text-foreground" />
             <h2 className="font-bold text-foreground text-lg">
@@ -241,12 +260,12 @@ export default function CartView() {
           {/* Saving / Updating Form */}
           {cart.length > 0 && (
             <div className="border-t border-border pt-4">
-              {/* Paste the Grand Total Value Banner here: */}
+              {/* Grand Total Value Banner */}
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold text-muted-foreground">
                   {t[lang].totalLabel}
                 </span>
-                <span className="text-xl font-bold bg-linear-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+                <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
                   ₹
                   {cart.reduce(
                     (sum, entry) =>
@@ -255,6 +274,7 @@ export default function CartView() {
                   )}
                 </span>
               </div>
+
               {saveError && (
                 <p className="text-xs text-red-500 bg-red-50/10 p-2 mb-3 rounded border border-red-500/20">
                   {saveError}
@@ -279,7 +299,7 @@ export default function CartView() {
                 {/* 2. Save as new list option */}
                 <form
                   onSubmit={handleSaveNewList}
-                  className="flex gap-2 flex-2 w-full"
+                  className="flex gap-2 flex-[2] w-full"
                 >
                   <Input
                     type="text"
@@ -308,7 +328,7 @@ export default function CartView() {
           )}
         </div>
 
-        {/* Section 2: Saved Lists View */}
+        {/* Section 2: Saved Lists View with Inflation Tracker */}
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
           <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
             <FolderOpen className="w-5 h-5 text-foreground" />
@@ -330,29 +350,112 @@ export default function CartView() {
               {savedLists.map((list) => (
                 <div
                   key={list._id}
-                  className={`p-4 border rounded-xl flex items-center justify-between hover:shadow-sm transition ${
+                  className={`p-4 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-sm transition ${
                     activeListId === list._id
                       ? "border-primary bg-primary/5 dark:bg-primary/5"
                       : "border-border bg-muted/20"
                   }`}
                 >
-                  <div>
-                    <h4 className="font-bold text-foreground flex items-center gap-2">
-                      {list.name}
-                      {activeListId === list._id && (
-                        <span className="text-[9px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-bold uppercase">
-                          Staged
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {list.items.length} {t[lang].listItemsCount} • Saved on{" "}
-                      {new Date(list.createdAt).toLocaleDateString()}
-                    </p>
+                  <div className="space-y-1 flex-1">
+                    {/* Inline Rename Form */}
+                    {editingListId === list._id ? (
+                      <div className="flex gap-2 items-center w-full max-w-md">
+                        <Input
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          className="h-8 text-sm bg-background border-border text-foreground"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleRenameList(list._id)}
+                          className="h-8 text-xs font-semibold"
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingListId(null)}
+                          className="h-8 text-xs text-muted-foreground"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <h4 className="font-bold text-foreground flex items-center gap-2">
+                        {list.name}
+                        {activeListId === list._id && (
+                          <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold uppercase border border-primary/20">
+                            Staged
+                          </span>
+                        )}
+                        {/* Rename button trigger */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingListId(list._id);
+                            setRenameValue(list.name);
+                          }}
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </h4>
+                    )}
+
+                    {/* Render Inflation Tracker Metrics */}
+                    {list.originalValue > 0 && list.currentValue > 0 ? (
+                      <div className="space-y-1">
+                        <p className="text-[11px] text-muted-foreground">
+                          {t[lang].originalCost}:{" "}
+                          <span className="font-semibold text-foreground">
+                            ₹{list.originalValue}
+                          </span>{" "}
+                          • {t[lang].currentValuation}:{" "}
+                          <span className="font-semibold text-foreground">
+                            ₹{list.currentValue}
+                          </span>
+                        </p>
+
+                        {(() => {
+                          const diff = list.currentValue - list.originalValue;
+                          const percent = Math.round(
+                            (diff / list.originalValue) * 100,
+                          );
+
+                          if (percent > 0) {
+                            return (
+                              <span className="inline-flex text-[9px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded">
+                                🔴 +{percent}% {t[lang].inflation}
+                              </span>
+                            );
+                          } else if (percent < 0) {
+                            return (
+                              <span className="inline-flex text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                                🟢 {percent}% {t[lang].deflation}
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="inline-flex text-[9px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 px-1.5 py-0.5 rounded">
+                                ⚪ {t[lang].stable}
+                              </span>
+                            );
+                          }
+                        })()}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {list.items.length} {t[lang].listItemsCount} • Saved on{" "}
+                        {new Date(list.createdAt).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="flex gap-2">
-                    {/* Load Saved List */}
+                  <div className="flex gap-2 self-end sm:self-center">
                     <Button
                       size="sm"
                       variant={
@@ -364,7 +467,6 @@ export default function CartView() {
                       {t[lang].loadList}
                     </Button>
 
-                    {/* Delete Saved List */}
                     <Button
                       size="icon"
                       variant="ghost"
