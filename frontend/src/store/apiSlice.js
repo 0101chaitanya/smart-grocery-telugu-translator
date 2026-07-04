@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const groceryApi = createApi({
   reducerPath: "groceryApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_BACKEND_URL,
+    baseUrl: import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api",
     credentials: "include", // Crucial: Automatically sends/receives session cookies
   }),
   tagTypes: ["Item", "User", "List", "Order"],

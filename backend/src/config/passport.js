@@ -8,8 +8,8 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      // Dynamically resolves to process.env.BACKEND_URL or falls back to localhost in development
-      callbackURL: `${process.env.BACKEND_URL}/api/auth/google/callback`,
+      // Dynamically resolves to process.env.BASE_URL or falls back to localhost in development
+      callbackURL: `${process.env.BASE_URL}/api/auth/google/callback`,
       scope: ['profile', 'email'],
     },
 

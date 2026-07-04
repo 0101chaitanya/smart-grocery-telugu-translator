@@ -8,6 +8,8 @@ export default function AuthPage() {
   const dispatch = useDispatch();
   const lang = useSelector((state) => state.cartState.lang);
 
+  const googleLoginUrl = `${import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api"}/auth/google`;
+
   return (
     <div className="min-h-screen relative flex flex-col justify-between font-sans overflow-hidden bg-background text-foreground transition-colors duration-200">
       
@@ -114,8 +116,8 @@ export default function AuthPage() {
               asChild
               className="w-full py-6 rounded-xl text-sm font-bold shadow-md hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-200"
             >
-              {/* Link to Google auth callback on port 3000 */}
-              <a href="http://localhost:3000/api/auth/google">
+              {/* Link to Google auth callback */}
+              <a href={googleLoginUrl}>
                 <svg className="w-4 h-4 mr-3" viewBox="0 0 24 24">
                   <path
                     fill="currentColor"

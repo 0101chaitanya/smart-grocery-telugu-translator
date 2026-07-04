@@ -35,7 +35,7 @@ mongoose
 // Set up Session Middleware with MongoDB persistence
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'mana_grocery_session_secret_key_123',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
@@ -67,9 +67,9 @@ app.get('/api/health', (req, res) => {
 });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(process.env.PORT || 3000, () => {
+  app.listen(process.env.PORT, () => {
     console.log(
-      `Server executing successfully on http://localhost:${process.env.PORT || 3000}`
+      `Server executing successfully on http://localhost:${process.env.PORT}`
     );
   });
 }
