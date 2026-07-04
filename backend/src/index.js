@@ -32,6 +32,12 @@ mongoose
   .then(() => console.log('Successfully connected to local MongoDB instance'))
   .catch((error) => console.error('MongoDB database connection error:', error));
 
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
+if (isProduction) {
+  app.set('trust proxy', 1); // Trust Vercel's proxy headers
+}
+
 // Set up Session Middleware with MongoDB persistence
 app.use(
   session({
@@ -44,8 +50,8 @@ app.use(
     }),
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Needed for cross-port redirect callbacks
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax', // 'none' enables cross-domain cookies
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   })
