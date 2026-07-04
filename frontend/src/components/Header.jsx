@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { Globe, ShoppingCart, LogOut, Sun, Moon, Plus } from "lucide-react";
+import { Globe, ShoppingCart, LogOut, Sun, Moon, Plus, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toogleLanguage, clearActiveList } from "../store/cartSlice";
 import { t } from "./translations";
@@ -78,6 +78,19 @@ export default function Header({ lang, userData, handleLogout, cartCount }) {
               </span>
             </div>
           )}
+
+          {/* Orders History Link */}
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="rounded-full h-8 w-8 sm:w-auto sm:px-3 border-border bg-card text-foreground"
+          >
+            <Link to="/orders" className="flex items-center gap-1">
+              <ClipboardList className="w-4 h-4 text-emerald-500" />
+              <span className="hidden sm:inline text-xs font-semibold">{t[lang].ordersHistoryButton}</span>
+            </Link>
+          </Button>
 
           {/* Cart Icon Link */}
           <Button

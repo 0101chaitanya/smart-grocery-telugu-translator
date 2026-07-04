@@ -6,7 +6,7 @@ export const groceryApi = createApi({
     baseUrl: import.meta.env.VITE_BACKEND_URL,
     credentials: "include", // Crucial: Automatically sends/receives session cookies
   }),
-  tagTypes: ["Item", "User", "List"],
+  tagTypes: ["Item", "User", "List", "Order"],
   endpoints: (builder) => ({
     // A. Check auth status
     getMe: builder.query({
@@ -81,6 +81,22 @@ export const groceryApi = createApi({
       query: ({ id, period }) => `/items/${id}/trends?period=${period}`,
       providesTags: (result, error, { id }) => [{ type: "Item", id }],
     }),
+    createOrder: builder.mutation({
+      query: (newOrder) => ({
+        url: "/orders",
+        method: "POST",
+        body: newOrder,
+      }),
+      invalidatesTags: ["Order"],
+    }),
+    getOrderStatus: builder.query({
+      query: (id) => `/orders/${id}`,
+      providesTags: (result, error, id) => [{ type: "Order", id }],
+    }),
+    getOrders: builder.query({
+      query: () => "/orders",
+      providesTags: ["Order"],
+    }),
   }),
 });
 
@@ -96,4 +112,7 @@ export const {
   useUpdateListMutation,
   useLogPriceMutation,
   useGetItemTrendsQuery,
+  useCreateOrderMutation,
+  useGetOrderStatusQuery,
+  useGetOrdersQuery,
 } = groceryApi;

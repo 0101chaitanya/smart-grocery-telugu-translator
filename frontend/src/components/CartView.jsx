@@ -1,6 +1,6 @@
 import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
-import { ShoppingCart, Package, Trash2, ArrowLeft, Save, FolderOpen, RefreshCw, Edit2 } from "lucide-react";
+import { ShoppingCart, Package, Trash2, ArrowLeft, Save, FolderOpen, RefreshCw, Edit2, CreditCard, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "./Header";
@@ -39,6 +39,12 @@ export default function CartView() {
   const [createList, { isLoading: isSavingList }] = useCreateListMutation();
   const [deleteList] = useDeleteListMutation();
   const [updateList, { isLoading: isUpdatingList }] = useUpdateListMutation();
+
+  const [listSearch, setListSearch] = useState("");
+
+  const filteredLists = savedLists.filter(list =>
+    list.name.toLowerCase().includes(listSearch.toLowerCase())
+  );
 
   const handleLogout = async () => {
     try {
@@ -115,6 +121,7 @@ export default function CartView() {
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const grandTotal = cart.reduce((sum, entry) => sum + (entry.quantity * (entry.latestPrice || 0)), 0);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-200">
@@ -183,7 +190,6 @@ export default function CartView() {
                     </div>
 
                     <div className="flex items-center justify-between xs:justify-end gap-3 border-t xs:border-t-0 border-border/40 pt-2 xs:pt-0">
-                      {/* Line Cost Total */}
                       {itemPrice > 0 && (
                         <span className="text-sm font-bold text-foreground pr-1">
                           ₹{lineTotal}
@@ -245,7 +251,7 @@ export default function CartView() {
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold text-muted-foreground">{t[lang].totalLabel}</span>
                 <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                  ₹{cart.reduce((sum, entry) => sum + (entry.quantity * (entry.latestPrice || 0)), 0)}
+                  ₹{grandTotal}
                 </span>
               </div>
 
@@ -256,7 +262,6 @@ export default function CartView() {
               )}
               
               <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
-                {/* 1. If currently editing a list, show "Update" button */}
                 {activeListId && (
                   <Button 
                     onClick={handleUpdateList} 
@@ -268,7 +273,6 @@ export default function CartView() {
                   </Button>
                 )}
 
-                {/* 2. Save as new list option */}
                 <form onSubmit={handleSaveNewList} className="flex gap-2 flex-[2] w-full">
                   <Input
                     type="text"
@@ -284,18 +288,39 @@ export default function CartView() {
                   </Button>
                 </form>
               </div>
+
+              {/* Proceed to checkout Navigation Button */}
+              <Button asChild className="w-full h-11 font-bold text-xs gap-1.5 shadow mt-4 bg-emerald-600 hover:bg-emerald-500 text-white">
+                <Link to="/checkout">
+                  <CreditCard className="w-4 h-4" /> Proceed to Checkout
+                </Link>
+              </Button>
             </div>
           )}
         </div>
 
         {/* Section 2: Saved Lists View with Inflation Tracker */}
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-          <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-border pb-4">
             <FolderOpen className="w-5 h-5 text-foreground" />
             <h3 className="font-bold text-foreground text-lg">
               {t[lang].savedListsHeading}
             </h3>
           </div>
+
+          {/* Search Input for lists */}
+          {savedLists.length > 0 && (
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                type="text"
+                placeholder="Search saved grocery lists by name..."
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                className="pl-9 h-8 text-[11px] bg-background border-border text-foreground rounded-lg"
+              />
+            </div>
+          )}
 
           {isLoadingLists ? (
             <div className="text-center py-6 text-muted-foreground text-sm">
@@ -305,9 +330,13 @@ export default function CartView() {
             <p className="text-center py-6 text-sm text-muted-foreground">
               {t[lang].noSavedLists}
             </p>
+          ) : filteredLists.length === 0 ? (
+            <p className="text-center py-6 text-xs text-muted-foreground">
+              No matching grocery lists found for "{listSearch}".
+            </p>
           ) : (
             <div className="space-y-4">
-              {savedLists.map((list) => (
+              {filteredLists.map((list) => (
                 <div
                   key={list._id}
                   className={`p-4 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-sm transition ${
@@ -317,7 +346,6 @@ export default function CartView() {
                   }`}
                 >
                   <div className="space-y-1 flex-1">
-                    {/* Inline Rename Form */}
                     {editingListId === list._id ? (
                       <div className="flex gap-2 items-center w-full max-w-md">
                         <Input
@@ -365,7 +393,6 @@ export default function CartView() {
                       </h4>
                     )}
                     
-                    {/* Render Inflation Tracker Metrics */}
                     {list.originalValue > 0 && list.currentValue > 0 ? (
                       <div className="space-y-1">
                         <p className="text-[11px] text-muted-foreground">

@@ -3,6 +3,8 @@ import AuthPage from "./components/AuthPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./components/Dashboard";
 import CartView from "./components/CartView";
+import CheckoutPage from "./components/CheckoutPage";
+import OrdersHistoryPage from "./components/OrdersHistoryPage";
 
 // Initialize theme based on user's preference or localStorage settings
 if (
@@ -33,6 +35,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <CartView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <OrdersHistoryPage />
             </ProtectedRoute>
           }
         />
