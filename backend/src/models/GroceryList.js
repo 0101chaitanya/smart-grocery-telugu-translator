@@ -38,4 +38,6 @@ const groceryListSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+groceryListSchema.index({ user: 1 });
+
 export default mongoose.model('GroceryList', groceryListSchema);

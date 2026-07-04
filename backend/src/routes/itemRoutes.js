@@ -9,7 +9,6 @@ const router = express.Router();
 // Gated behind authentication
 router.use(protect);
 
-// 1. GET /api/items - Fetch all items (with dynamic price aggregates & auto-seeding)
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
@@ -22,69 +21,79 @@ router.get('/', async (req, res) => {
     }
 
     const items = await Item.find(query).lean();
+    if (items.length === 0) {
+      return res.json([]);
+    }
 
-    // Enrich items with prices and auto-seed history if missing
-    const enrichedItems = await Promise.all(
-      items.map(async (item) => {
-        // A. Dynamic Image fallback
-        if (!item.imageUrl) {
-          const englishTranslation = item.translations.find(
-            (t) => t.languageCode === 'en'
-          );
-          const primaryEnglishName =
-            englishTranslation && englishTranslation.names.length > 0
-              ? englishTranslation.names[0]
-              : 'grocery';
-          item.imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
+    const itemIds = items.map(item => item._id);
+
+    // 1. Bulk Auto-Seeding check
+    const existingPrices = await PriceRecord.distinct('item', { item: { $in: itemIds } });
+    const seededItemIdsSet = new Set(existingPrices.map(id => id.toString()));
+
+    const itemsToSeed = items.filter(item => !seededItemIdsSet.has(item._id.toString()));
+    if (itemsToSeed.length > 0) {
+      const seedRecords = [];
+      for (const item of itemsToSeed) {
+        const basePrice = Math.floor(Math.random() * 50) + 30;
+        const seeds = [
+          { daysAgo: 3, priceChange: -5 },
+          { daysAgo: 2, priceChange: 5 },
+          { daysAgo: 1, priceChange: 0 },
+        ];
+        for (const seed of seeds) {
+          const seedDate = new Date();
+          seedDate.setDate(seedDate.getDate() - seed.daysAgo);
+          seedRecords.push({
+            item: item._id,
+            price: basePrice + seed.priceChange,
+            user: req.user._id,
+            createdAt: seedDate
+          });
         }
+      }
+      if (seedRecords.length > 0) {
+        await PriceRecord.insertMany(seedRecords);
+      }
+    }
 
-        // B. Auto-seed history if item has NO price records in MongoDB
-        const hasPrices = await PriceRecord.exists({ item: item._id });
-        if (!hasPrices) {
-          // Generate a realistic base price (randomly between 30 and 80)
-          const basePrice = Math.floor(Math.random() * 50) + 30;
+    // 2. Retrieve all Price Records for returned items in a single query
+    const allPrices = await PriceRecord.find({ item: { $in: itemIds } }).sort({ createdAt: 1 });
 
-          // Seed 3 historical logs at different days with slight price variations
-          const seeds = [
-            { daysAgo: 3, priceChange: -5 },
-            { daysAgo: 2, priceChange: 5 },
-            { daysAgo: 1, priceChange: 0 },
-          ];
+    // Group price logs in-memory
+    const pricesMap = {};
+    allPrices.forEach(record => {
+      const itemIdStr = record.item.toString();
+      if (!pricesMap[itemIdStr]) {
+        pricesMap[itemIdStr] = [];
+      }
+      pricesMap[itemIdStr].push(record.price);
+    });
 
-          for (const seed of seeds) {
-            const seedDate = new Date();
-            seedDate.setDate(seedDate.getDate() - seed.daysAgo);
+    // 3. Map and enrich items list
+    const enrichedItems = items.map(item => {
+      // Dynamic image fallback
+      if (!item.imageUrl) {
+        const englishTranslation = item.translations.find(t => t.languageCode === 'en');
+        const primaryEnglishName = englishTranslation && englishTranslation.names.length > 0
+          ? englishTranslation.names[0]
+          : 'grocery';
+        item.imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
+      }
 
-            const seedRecord = new PriceRecord({
-              item: item._id,
-              price: basePrice + seed.priceChange,
-              user: req.user._id, // Tied to logged in user
-              createdAt: seedDate,
-            });
-            await seedRecord.save();
-          }
-        }
+      const itemPrices = pricesMap[item._id.toString()] || [];
+      
+      item.latestPrice = itemPrices.length > 0 ? itemPrices[itemPrices.length - 1] : 0;
+      
+      if (itemPrices.length > 0) {
+        const total = itemPrices.reduce((sum, p) => sum + p, 0);
+        item.avgPrice = Math.round((total / itemPrices.length) * 100) / 100;
+      } else {
+        item.avgPrice = 0;
+      }
 
-        // C. Query Latest Price logged for this item
-        const latestRecord = await PriceRecord.findOne({ item: item._id })
-          .sort({ createdAt: -1 })
-          .select('price');
-
-        // D. Query Average Price logged for this item
-        const avgResult = await PriceRecord.aggregate([
-          { $match: { item: item._id } },
-          { $group: { _id: null, avgPrice: { $avg: '$price' } } },
-        ]);
-
-        item.latestPrice = latestRecord ? latestRecord.price : 0;
-        item.avgPrice =
-          avgResult.length > 0
-            ? Math.round(avgResult[0].avgPrice * 100) / 100
-            : 0;
-
-        return item;
-      })
-    );
+      return item;
+    });
 
     res.json(enrichedItems);
   } catch (error) {

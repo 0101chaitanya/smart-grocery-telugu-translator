@@ -66,8 +66,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.listen(process.env.PORT, () => {
-  console.log(
-    `Server executing successfully on http://localhost:${process.env.PORT}`
-  );
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(process.env.PORT || 3000, () => {
+    console.log(
+      `Server executing successfully on http://localhost:${process.env.PORT || 3000}`
+    );
+  });
+}
+
+export default app;

@@ -1,0 +1,14 @@
+{
+  "name": "smart-grocery-telugu-translator-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "echo 'No build step required for backend'"
+  }
+}

@@ -20,4 +20,7 @@ const priceRecordSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+priceRecordSchema.index({ item: 1, createdAt: -1 });
+priceRecordSchema.index({ user: 1 });
+
 export default mongoose.model('PriceRecord', priceRecordSchema);

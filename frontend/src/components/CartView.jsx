@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "./Header";
 import { t } from "./translations";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 import { 
   useGetMeQuery, 
@@ -42,9 +42,11 @@ export default function CartView() {
 
   const [listSearch, setListSearch] = useState("");
 
-  const filteredLists = savedLists.filter(list =>
-    list.name.toLowerCase().includes(listSearch.toLowerCase())
-  );
+  const filteredLists = useMemo(() => {
+    return savedLists.filter(list =>
+      list.name.toLowerCase().includes(listSearch.toLowerCase())
+    );
+  }, [savedLists, listSearch]);
 
   const handleLogout = async () => {
     try {
