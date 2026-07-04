@@ -1,12 +1,11 @@
 {
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://smart-grocery-telugu-translator-bac.vercel.app/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
