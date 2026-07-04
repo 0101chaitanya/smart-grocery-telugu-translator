@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import {
   Globe,
   Search,
@@ -8,18 +9,28 @@ import {
   Trash2,
   PlusCircle,
   Package,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Hooks and actions from Redux
-import { useGetItemsQuery, useLookupItemMutation } from "./store/apiSlice";
+// Hooks and actions
+import {
+  useGetItemsQuery,
+  useLookupItemMutation,
+  useGetMeQuery,
+  useLogoutMutation,
+} from "./store/apiSlice";
 import {
   toogleLanguage,
   addToCart,
   updateQuantity,
   removeFromCart,
 } from "./store/cartSlice";
+
+// Import new Auth & Router wrapper files
+import AuthPage from "./components/AuthPage";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const t = {
   en: {
@@ -73,32 +84,30 @@ const t = {
   },
 };
 
-export default function App() {
+// Sub-component: Main Dashboard page
+function Dashboard() {
   const dispatch = useDispatch();
 
-  // Read state from Redux
   const lang = useSelector((state) => state.cartState.lang);
   const cart = useSelector((state) => state.cartState.cart);
 
-  // Local component state for UI inputs
   const [search, setSearch] = useState("");
   const [itemInput, setItemInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // RTK Query: Fetch items (auto-refreshing cache)
   const { data: items = [], isLoading } = useGetItemsQuery(search);
-
-  // RTK Query: Add item lookup mutation hook (Google Gemma 4)
   const [lookupItem, { isLoading: isLookingUp }] = useLookupItemMutation();
+
+  // Fetch logged in user profile details and logout mutation hook
+  const { data: userData } = useGetMeQuery();
+  const [logout] = useLogoutMutation();
 
   const handleLookupAndAdd = async (e) => {
     e.preventDefault();
     setErrorMsg("");
-
     if (!itemInput.trim()) return;
 
     try {
-      // Trigger the RTK Query lookup mutation
       await lookupItem(itemInput.trim()).unwrap();
       setItemInput("");
     } catch (err) {
@@ -108,14 +117,20 @@ export default function App() {
     }
   };
 
-  // Helper to extract translation name based on chosen language
+  const handleLogout = async () => {
+    try {
+      await logout().unwrap();
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
+
   const getItemNameDisplay = (item) => {
     const translation = item.translations.find((t) => t.languageCode === lang);
     const activeTranslation = translation || item.translations[0];
     return activeTranslation ? activeTranslation.names.join(", ") : "Unknown";
   };
 
-  // Helper to get secondary language translation for context
   const getSubNameDisplay = (item) => {
     const alternateLang = lang === "en" ? "te" : "en";
     const translation = item.translations.find(
@@ -126,7 +141,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Header */}
+      {/* Dashboard Header */}
       <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
@@ -135,14 +150,43 @@ export default function App() {
             </h1>
             <p className="text-xs text-slate-500">{t[lang].subtitle}</p>
           </div>
-          <Button
-            onClick={() => dispatch(toogleLanguage())}
-            className="rounded-full gap-2"
-            variant="outline"
-          >
-            <Globe className="w-4 h-4" />
-            {t[lang].langButton}
-          </Button>
+
+          <div className="flex items-center gap-4">
+            {/* User Profile Info */}
+            {userData?.user && (
+              <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                <img
+                  src={userData.user.avatar}
+                  alt={userData.user.name}
+                  className="w-8 h-8 rounded-full border border-slate-100"
+                />
+                <span className="text-xs font-semibold text-slate-600 hidden sm:inline">
+                  {userData.user.name}
+                </span>
+              </div>
+            )}
+
+            {/* Language Toggle */}
+            <Button
+              onClick={() => dispatch(toogleLanguage())}
+              className="rounded-full gap-2 h-8"
+              variant="outline"
+              size="sm"
+            >
+              <Globe className="w-4 h-4" />
+              {t[lang].langButton}
+            </Button>
+
+            {/* Logout Button */}
+            <Button
+              onClick={handleLogout}
+              className="rounded-full gap-2 h-8 text-red-500 hover:text-red-600"
+              variant="ghost"
+              size="sm"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -150,7 +194,6 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left column: Search and Catalog Additions */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Search bar */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <Input
@@ -162,7 +205,6 @@ export default function App() {
             />
           </div>
 
-          {/* Catalog grid */}
           {isLoading ? (
             <div className="text-center py-10 text-slate-400 text-sm">
               Loading catalog...
@@ -185,7 +227,6 @@ export default function App() {
                       {getSubNameDisplay(item)}
                     </p>
                   </div>
-
                   <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-3">
                     <span className="text-xs text-slate-500">
                       Unit: {item.defaultUnit}
@@ -195,8 +236,7 @@ export default function App() {
                       onClick={() => dispatch(addToCart(item))}
                       className="h-8 gap-1.5"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add
+                      <Plus className="w-3.5 h-3.5" /> Add
                     </Button>
                   </div>
                 </div>
@@ -204,19 +244,16 @@ export default function App() {
             </div>
           )}
 
-          {/* Add Known Item Form */}
           <div className="bg-white p-6 rounded-xl border border-slate-100">
             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
               <PlusCircle className="w-5 h-5 text-slate-500" />
               {t[lang].addSection}
             </h3>
-
             {errorMsg && (
               <p className="text-xs text-red-500 bg-red-50 p-2.5 rounded-lg border border-red-100 mb-4">
                 {errorMsg}
               </p>
             )}
-
             <form onSubmit={handleLookupAndAdd} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">
@@ -273,15 +310,13 @@ export default function App() {
                         {t[lang].qty}: {entry.quantity} {entry.defaultUnit}
                       </p>
                     </div>
-
                     <div className="flex items-center gap-3">
-                      {/* Quantity Toggler */}
                       <div className="flex items-center border border-slate-200 rounded bg-white">
                         <button
                           onClick={() =>
                             dispatch(
                               updateQuantity({
-                                _id: entry._id, // Changed key from id to _id
+                                _id: entry._id,
                                 quantity: Math.max(0.25, entry.quantity - 0.25),
                               }),
                             )
@@ -297,7 +332,7 @@ export default function App() {
                           onClick={() =>
                             dispatch(
                               updateQuantity({
-                                _id: entry._id, // Changed key from id to _id
+                                _id: entry._id,
                                 quantity: entry.quantity + 0.25,
                               }),
                             )
@@ -307,8 +342,6 @@ export default function App() {
                           +
                         </button>
                       </div>
-
-                      {/* Remove Button */}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -326,5 +359,26 @@ export default function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Router Entry Config
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/auth" element={<AuthPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        {/* Redirect any other unknown routes to Dashboard */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
