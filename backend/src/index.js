@@ -33,28 +33,26 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log('Successfully connected to local MongoDB instance');
-    
+
     // Seed single Seller if not exists
     try {
       const sellerEmail = 'sellerUser1';
       let seller = await User.findOne({ role: 'seller' });
       const hashedPassword = await bcrypt.hash('sellerAdmin@123', 10);
-      
+
       if (!seller) {
         seller = new User({
           name: 'Store Manager',
           email: sellerEmail,
           role: 'seller',
           password: hashedPassword,
-          preferredLanguage: 'en'
+          preferredLanguage: 'en',
         });
         await seller.save();
-        console.log('Seeded the single Seller account successfully: sellerUser1 / sellerAdmin@123');
       } else {
         seller.email = sellerEmail;
         seller.password = hashedPassword;
         await seller.save();
-        console.log('Updated Seller account credentials to: sellerUser1 / sellerAdmin@123');
       }
     } catch (seedErr) {
       console.error('Error seeding Seller account:', seedErr);
@@ -62,7 +60,8 @@ mongoose
   })
   .catch((error) => console.error('MongoDB database connection error:', error));
 
-const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+const isProduction =
+  process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
 if (isProduction) {
   app.set('trust proxy', 1); // Trust Vercel's proxy headers

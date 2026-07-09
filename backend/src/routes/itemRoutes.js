@@ -28,60 +28,26 @@ router.get('/', async (req, res) => {
     }
 
     // Temporarily map items with no stock (null or undefined) to a default stock of 5
-    items = items.map(item => {
+    items = items.map((item) => {
       if (item.stock === undefined || item.stock === null) {
         return { ...item, stock: 5 };
       }
       return item;
     });
 
-    const itemIds = items.map(item => item._id);
+    const itemIds = items.map((item) => item._id);
 
-    // 1. Bulk Auto-Seeding check
-    const existingPrices = await PriceRecord.distinct('item', { item: { $in: itemIds } });
-    const seededItemIdsSet = new Set(existingPrices.map(id => id.toString()));
 
-    const itemsToSeed = items.filter(item => !seededItemIdsSet.has(item._id.toString()));
-    if (itemsToSeed.length > 0) {
-      const seedRecords = [];
-      for (const item of itemsToSeed) {
-        const basePrice = Math.floor(Math.random() * 50) + 30;
-        const seeds = [
-          { weeksAgo: 6, priceChange: -8 },
-          { weeksAgo: 4, priceChange: -4 },
-          { weeksAgo: 2, priceChange: 4 },
-          { daysAgo: 5, priceChange: -2 },
-          { daysAgo: 3, priceChange: -5 },
-          { daysAgo: 2, priceChange: 5 },
-          { daysAgo: 1, priceChange: 0 },
-        ];
-        for (const seed of seeds) {
-          const seedDate = new Date();
-          if (seed.weeksAgo) {
-            seedDate.setDate(seedDate.getDate() - (seed.weeksAgo * 7));
-          } else if (seed.daysAgo) {
-            seedDate.setDate(seedDate.getDate() - seed.daysAgo);
-          }
-          seedRecords.push({
-            item: item._id,
-            price: basePrice + seed.priceChange,
-            user: req.user._id,
-            createdAt: seedDate
-          });
-        }
-      }
-      if (seedRecords.length > 0) {
-        await PriceRecord.insertMany(seedRecords, { timestamps: false });
-      }
-    }
 
     // 2. Retrieve all Price Records for returned items in a single query
-    const allPrices = await PriceRecord.find({ item: { $in: itemIds } }).sort({ createdAt: 1 });
+    const allPrices = await PriceRecord.find({ item: { $in: itemIds } }).sort({
+      createdAt: 1,
+    });
 
     // Group price logs in-memory
     const pricesMap = {};
     const latestPriceDateMap = {};
-    allPrices.forEach(record => {
+    allPrices.forEach((record) => {
       const itemIdStr = record.item.toString();
       if (!pricesMap[itemIdStr]) {
         pricesMap[itemIdStr] = [];
@@ -91,22 +57,26 @@ router.get('/', async (req, res) => {
     });
 
     // 3. Map and enrich items list
-    const enrichedItems = items.map(item => {
+    const enrichedItems = items.map((item) => {
       // Dynamic image fallback
       if (!item.imageUrl) {
-        const englishTranslation = item.translations.find(t => t.languageCode === 'en');
-        const primaryEnglishName = englishTranslation && englishTranslation.names.length > 0
-          ? englishTranslation.names[0]
-          : 'grocery';
+        const englishTranslation = item.translations.find(
+          (t) => t.languageCode === 'en'
+        );
+        const primaryEnglishName =
+          englishTranslation && englishTranslation.names.length > 0
+            ? englishTranslation.names[0]
+            : 'grocery';
         item.imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
       }
 
       const itemPrices = pricesMap[item._id.toString()] || [];
       const lastDate = latestPriceDateMap[item._id.toString()];
-      
-      item.latestPrice = itemPrices.length > 0 ? itemPrices[itemPrices.length - 1] : 0;
+
+      item.latestPrice =
+        itemPrices.length > 0 ? itemPrices[itemPrices.length - 1] : 0;
       item.lastPriceUpdated = lastDate ? lastDate.toISOString() : null;
-      
+
       if (itemPrices.length > 0) {
         const total = itemPrices.reduce((sum, p) => sum + p, 0);
         item.avgPrice = Math.round((total / itemPrices.length) * 100) / 100;
@@ -132,7 +102,9 @@ function extractJSON(text) {
 router.post('/lookup', async (req, res) => {
   try {
     if (req.user.role !== 'seller') {
-      return res.status(403).json({ error: 'Only sellers can add new items to the catalog.' });
+      return res
+        .status(403)
+        .json({ error: 'Only sellers can add new items to the catalog.' });
     }
 
     const { name } = req.body;
@@ -144,7 +116,7 @@ router.post('/lookup', async (req, res) => {
 
     // Search database for existing item matching this name
     const existingItem = await Item.findOne({
-      'translations.names': { $regex: `^${trimmedName}$`, $options: 'i' }
+      'translations.names': { $regex: `^${trimmedName}$`, $options: 'i' },
     });
 
     if (existingItem) {
@@ -212,35 +184,102 @@ Return ONLY a strict JSON object with this shape:
       const rawContent = result.choices[0].message.content;
       generatedData = extractJSON(rawContent);
     } catch (apiError) {
-      console.warn('API translation failed, using local safe fallback:', apiError.message);
-      
+      console.warn(
+        'API translation failed, using local safe fallback:',
+        apiError.message
+      );
+
       // Fallback inference logic
       let inferredCategory = 'Groceries';
       let inferredUnit = 'kg';
 
       const lowerName = trimmedName.toLowerCase();
-      const vegKeywords = ['onion', 'tomato', 'potato', 'chilli', 'garlic', 'ginger', 'carrot', 'cabbage', 'aloo', 'ఉల్లి', 'టమో', 'బంగా', 'కూరగాయ'];
-      const fruitKeywords = ['apple', 'banana', 'mango', 'grape', 'orange', 'యాపి', 'అరటి', 'మామి', 'పండు'];
-      const spiceKeywords = ['masala', 'powder', 'pepper', 'cardamom', 'clove', 'cinnamon', 'కారం', 'పసుపు', 'మసాలా'];
-      const dairyKeywords = ['milk', 'curd', 'paneer', 'butter', 'ghee', 'yogurt', 'cheese', 'పాలు', 'నెయ్యి', 'పనీర్'];
-      const beverageKeywords = ['tea', 'coffee', 'cola', 'pepsi', 'drink', 'soda', 'juice', 'టీ', 'కాఫీ', 'పానీయం'];
-      const snackKeywords = ['chips', 'biscuit', 'chocolate', 'namkeen', 'bhujia', 'బిస్కె', 'తినుబండ'];
+      const vegKeywords = [
+        'onion',
+        'tomato',
+        'potato',
+        'chilli',
+        'garlic',
+        'ginger',
+        'carrot',
+        'cabbage',
+        'aloo',
+        'ఉల్లి',
+        'టమో',
+        'బంగా',
+        'కూరగాయ',
+      ];
+      const fruitKeywords = [
+        'apple',
+        'banana',
+        'mango',
+        'grape',
+        'orange',
+        'యాపి',
+        'అరటి',
+        'మామి',
+        'పండు',
+      ];
+      const spiceKeywords = [
+        'masala',
+        'powder',
+        'pepper',
+        'cardamom',
+        'clove',
+        'cinnamon',
+        'కారం',
+        'పసుపు',
+        'మసాలా',
+      ];
+      const dairyKeywords = [
+        'milk',
+        'curd',
+        'paneer',
+        'butter',
+        'ghee',
+        'yogurt',
+        'cheese',
+        'పాలు',
+        'నెయ్యి',
+        'పనీర్',
+      ];
+      const beverageKeywords = [
+        'tea',
+        'coffee',
+        'cola',
+        'pepsi',
+        'drink',
+        'soda',
+        'juice',
+        'టీ',
+        'కాఫీ',
+        'పానీయం',
+      ];
+      const snackKeywords = [
+        'chips',
+        'biscuit',
+        'chocolate',
+        'namkeen',
+        'bhujia',
+        'బిస్కె',
+        'తినుబండ',
+      ];
 
-      if (vegKeywords.some(kw => lowerName.includes(kw))) {
+      if (vegKeywords.some((kw) => lowerName.includes(kw))) {
         inferredCategory = 'Vegetables';
-      } else if (fruitKeywords.some(kw => lowerName.includes(kw))) {
+      } else if (fruitKeywords.some((kw) => lowerName.includes(kw))) {
         inferredCategory = 'Fruits';
         inferredUnit = 'pcs';
-      } else if (spiceKeywords.some(kw => lowerName.includes(kw))) {
+      } else if (spiceKeywords.some((kw) => lowerName.includes(kw))) {
         inferredCategory = 'Spices';
         inferredUnit = 'g';
-      } else if (dairyKeywords.some(kw => lowerName.includes(kw))) {
+      } else if (dairyKeywords.some((kw) => lowerName.includes(kw))) {
         inferredCategory = 'Dairy';
         inferredUnit = 'L';
-      } else if (beverageKeywords.some(kw => lowerName.includes(kw))) {
+      } else if (beverageKeywords.some((kw) => lowerName.includes(kw))) {
         inferredCategory = 'Beverages';
         inferredUnit = 'pack';
-      } else if (snackKeywords.some(kw => lowerName.includes(kw))) {
+      } else if (snackKeywords.some((kw) => lowerName.includes(kw))) {
         inferredCategory = 'Snacks';
         inferredUnit = 'pack';
       }
@@ -251,8 +290,8 @@ Return ONLY a strict JSON object with this shape:
         estimatedPrice: 35,
         translations: [
           { languageCode: 'en', names: [trimmedName] },
-          { languageCode: 'te', names: [trimmedName] }
-        ]
+          { languageCode: 'te', names: [trimmedName] },
+        ],
       };
     }
 
@@ -278,7 +317,7 @@ Return ONLY a strict JSON object with this shape:
       translations: generatedData.translations,
       imageUrl: imageUrl,
       seller: req.user._id,
-      stock: 0
+      stock: 0,
     });
 
     await newItem.save();
@@ -429,29 +468,6 @@ Return ONLY a strict JSON object with this shape:
   }
 });
 
-// 4. POST /api/items/:id/prices - Log a new price point
-router.post('/:id/prices', protect, async (req, res) => {
-  try {
-    const { price } = req.body;
-    if (price === undefined || Number(price) <= 0) {
-      return res
-        .status(400)
-        .json({ error: 'A valid price greater than zero is required' });
-    }
-
-    const newPrice = new PriceRecord({
-      item: req.params.id,
-      price: Number(price),
-      user: req.user,
-    });
-
-    await newPrice.save();
-    res.status(201).json(newPrice);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // 1.1 GET /api/items/:id/trends - Group and retrieve price logs over Day/Week
 router.get('/:id/trends', protect, async (req, res) => {
   try {
@@ -465,11 +481,11 @@ router.get('/:id/trends', protect, async (req, res) => {
     }
 
     const trends = await PriceRecord.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           item: new mongoose.Types.ObjectId(id),
-          user: new mongoose.Types.ObjectId(req.user._id)
-        } 
+          user: new mongoose.Types.ObjectId(req.user._id),
+        },
       },
       {
         $group: {
@@ -489,7 +505,7 @@ router.get('/:id/trends', protect, async (req, res) => {
         const parts = t._id.split('-W');
         const year = parseInt(parts[0], 10);
         const week = parseInt(parts[1], 10);
-        
+
         // Calculate the Monday of that ISO week number
         const simple = new Date(year, 0, 1 + (week - 1) * 7);
         const dow = simple.getDay();
@@ -499,7 +515,7 @@ router.get('/:id/trends', protect, async (req, res) => {
         } else {
           monday.setDate(simple.getDate() + 8 - simple.getDay());
         }
-        
+
         const yyyy = monday.getFullYear();
         const mm = String(monday.getMonth() + 1).padStart(2, '0');
         const dd = String(monday.getDate()).padStart(2, '0');
@@ -530,7 +546,7 @@ router.put('/:id/stock', protect, async (req, res) => {
 
     const { id } = req.params;
     const { stock, price } = req.body;
-    
+
     const item = await Item.findById(id);
     if (!item) {
       return res.status(404).json({ error: 'Item not found.' });
@@ -545,7 +561,7 @@ router.put('/:id/stock', protect, async (req, res) => {
       const newPrice = new PriceRecord({
         item: item._id,
         price: Number(price),
-        user: req.user._id
+        user: req.user._id,
       });
       await newPrice.save();
     }
