@@ -42,9 +42,14 @@ export default function OrdersHistoryPage() {
 
   const getItemNameDisplay = (item) => {
     if (!item) return "Unknown Item";
-    const translation = item.translations?.find((t) => t.languageCode === lang);
-    const activeTranslation = translation || item.translations?.[0];
-    return activeTranslation ? activeTranslation.names.join(", ") : "Unknown Item";
+    if (!item.translations || item.translations.length === 0) {
+      return item.name || "Unknown Item";
+    }
+    const translation = item.translations.find((t) => t.languageCode === lang);
+    const activeTranslation = translation || item.translations[0];
+    return activeTranslation && activeTranslation.names && activeTranslation.names.length > 0
+      ? activeTranslation.names.join(", ")
+      : item.name || "Unknown Item";
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);

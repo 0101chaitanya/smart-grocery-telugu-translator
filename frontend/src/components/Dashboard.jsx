@@ -138,12 +138,19 @@ export default function Dashboard() {
   };
 
   const getItemNameDisplay = (item) => {
+    if (!item) return "Unknown";
+    if (!item.translations || item.translations.length === 0) {
+      return item.name || "Unknown";
+    }
     const translation = item.translations.find((t) => t.languageCode === lang);
     const activeTranslation = translation || item.translations[0];
-    return activeTranslation ? activeTranslation.names.join(", ") : "Unknown";
+    return activeTranslation && activeTranslation.names.length > 0
+      ? activeTranslation.names.join(", ")
+      : item.name || "Unknown";
   };
 
   const getSubNameDisplay = (item) => {
+    if (!item || !item.translations || item.translations.length === 0) return "";
     const alternateLang = lang === "en" ? "te" : "en";
     const translation = item.translations.find(
       (t) => t.languageCode === alternateLang,

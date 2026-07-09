@@ -1,6 +1,6 @@
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Package, Trash2, ArrowLeft, Save, FolderOpen, RefreshCw, Edit2, CreditCard, Search } from "lucide-react";
+import { ShoppingCart, Package, Trash2, ArrowLeft, Save, FolderOpen, RefreshCw, Edit2, CreditCard, Search, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "./Header";
@@ -122,10 +122,221 @@ export default function CartView() {
     }
   };
 
+  const getSubNameDisplay = (item) => {
+    const fallbackLang = lang === 'en' ? 'te' : 'en';
+    const translation = item.translations?.find((t) => t.languageCode === fallbackLang);
+    return translation && translation.names.length > 0 ? translation.names[0] : "";
+  };
+
+
+
+  const handlePrintActiveCart = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    
+    let html = `
+      <html>
+        <head>
+          <title>Mana grocery store - Active Cart</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #1e293b; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+            .store-title { font-size: 24px; font-weight: 800; color: #059669; text-transform: uppercase; margin: 0; }
+            .doc-title { font-size: 14px; font-weight: 600; color: #64748b; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+            .meta { margin-top: 10px; font-size: 12px; color: #94a3b8; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { text-align: left; padding: 12px; border-bottom: 2px solid #cbd5e1; font-size: 12px; text-transform: uppercase; color: #475569; }
+            td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+            .qty { text-align: center; }
+            .price { text-align: right; }
+            .total-row { font-weight: 700; background: #f8fafc; }
+            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="store-title">${lang === 'te' ? 'మన గ్రోసరీ స్టోర్' : 'Mana grocery store'}</h1>
+            <div class="doc-title">${lang === 'te' ? 'షాపింగ్ లిస్ట్' : 'Active Shopping List'}</div>
+            <div class="meta">Printed on: ${new Date().toLocaleString()}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Item Name</th>
+                <th class="qty">Qty</th>
+                <th class="price">Rate</th>
+                <th class="price">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    cart.forEach((entry, idx) => {
+      const name = getItemNameDisplay(entry);
+      const sub = getSubNameDisplay(entry);
+      const price = entry.latestPrice || 0;
+      const total = entry.quantity * price;
+      html += `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><strong>${name}</strong><br><span style="font-size: 11px; color: #64748b;">${sub}</span></td>
+          <td class="qty">${entry.quantity} ${entry.defaultUnit}</td>
+          <td class="price">₹${price}</td>
+          <td class="price">₹${total}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+              <tr class="total-row">
+                <td colspan="4" style="text-align: right; padding: 16px;">GRAND TOTAL:</td>
+                <td class="price" style="padding: 16px;">₹${grandTotal}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="footer">
+            Thank you for shopping at Mana grocery store!
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const handlePrintSavedList = (list) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    
+    let html = `
+      <html>
+        <head>
+          <title>Mana grocery store - ${list.name}</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #1e293b; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+            .store-title { font-size: 24px; font-weight: 800; color: #059669; text-transform: uppercase; margin: 0; }
+            .doc-title { font-size: 14px; font-weight: 600; color: #64748b; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+            .meta { margin-top: 10px; font-size: 12px; color: #94a3b8; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { text-align: left; padding: 12px; border-bottom: 2px solid #cbd5e1; font-size: 12px; text-transform: uppercase; color: #475569; }
+            td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+            .qty { text-align: center; }
+            .price { text-align: right; }
+            .total-row { font-weight: 700; background: #f8fafc; }
+            .inflation-badge { font-weight: 700; font-size: 12px; color: #e11d48; }
+            .deflation-badge { font-weight: 700; font-size: 12px; color: #059669; }
+            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="store-title">${lang === 'te' ? 'మన గ్రోసరీ స్టోర్' : 'Mana grocery store'}</h1>
+            <div class="doc-title">${lang === 'te' ? 'భద్రపరిచిన జాబితా' : 'Saved Grocery List'}: ${list.name}</div>
+            <div class="meta">Saved on: ${new Date(list.createdAt).toLocaleDateString()} • Printed on: ${new Date().toLocaleString()}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Item Name</th>
+                <th class="qty">Qty</th>
+                <th class="price">Saved Rate</th>
+                <th class="price">Current Rate</th>
+                <th class="price">Current Total</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    if (list.items.length === 0) {
+      html += `
+        <tr>
+          <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic;">
+            No items in this grocery list. Please load this list and add items from the catalog!
+          </td>
+        </tr>
+      `;
+    } else {
+      list.items.forEach((entry, idx) => {
+        const catalogItem = entry.item; // the populated Item document
+        if (!catalogItem) {
+          html += `
+            <tr>
+              <td>${idx + 1}</td>
+              <td colspan="5" style="color: #94a3b8; font-style: italic;">[Item no longer available in catalog]</td>
+            </tr>
+          `;
+          return;
+        }
+        const nameEn = catalogItem.translations?.find(t => t.languageCode === 'en')?.names[0] || catalogItem.name || 'Unknown';
+        const nameTe = catalogItem.translations?.find(t => t.languageCode === 'te')?.names[0] || '';
+        const name = lang === 'te' && nameTe ? nameTe : nameEn;
+        const sub = lang === 'te' ? nameEn : nameTe;
+        
+        const priceAtSave = entry.priceAtSave || 0;
+        const currentPrice = catalogItem.latestPrice || entry.priceAtSave || 0;
+        const lineTotalCurrent = entry.quantity * currentPrice;
+        
+        html += `
+          <tr>
+            <td>${idx + 1}</td>
+            <td><strong>${name}</strong><br><span style="font-size: 11px; color: #64748b;">${sub}</span></td>
+            <td class="qty">${entry.quantity} ${catalogItem.defaultUnit || 'kg'}</td>
+            <td class="price">₹${priceAtSave}</td>
+            <td class="price">₹${currentPrice}</td>
+            <td class="price">₹${lineTotalCurrent}</td>
+          </tr>
+        `;
+      });
+    }
+
+    html += `
+              <tr class="total-row">
+                <td colspan="5" style="text-align: right; padding: 12px;">ORIGINAL SAVED TOTAL:</td>
+                <td class="price" style="padding: 12px;">₹${list.originalValue}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="5" style="text-align: right; padding: 12px;">CURRENT STORE VALUE:</td>
+                <td class="price" style="padding: 12px;">₹${list.currentValue}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="footer">
+            Thank you for using Mana grocery store!
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   const getItemNameDisplay = (item) => {
+    if (!item) return "Unknown";
+    if (!item.translations || item.translations.length === 0) {
+      return item.name || "Unknown";
+    }
     const translation = item.translations.find((t) => t.languageCode === lang);
     const activeTranslation = translation || item.translations[0];
-    return activeTranslation ? activeTranslation.names.join(", ") : "Unknown";
+    return activeTranslation && activeTranslation.names && activeTranslation.names.length > 0
+      ? activeTranslation.names.join(", ")
+      : item.name || "Unknown";
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -153,10 +364,24 @@ export default function CartView() {
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col min-h-[300px]">
           <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
             <ShoppingCart className="w-5 h-5 text-foreground" />
-            <h2 className="font-bold text-foreground text-lg">
+            <h2 className="font-bold text-foreground text-lg flex-1">
               {activeListName ? `Staged: ${activeListName}` : t[lang].cart}
             </h2>
-            <span className="ml-auto bg-muted text-muted-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full">
+            {cart.length > 0 && (
+              <div className="flex gap-1 mr-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handlePrintActiveCart}
+                  title="Print Active List"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                >
+                  <Printer className="w-4 h-4" />
+                </Button>
+
+              </div>
+            )}
+            <span className="bg-muted text-muted-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0">
               {totalCartCount} items
             </span>
           </div>
@@ -438,20 +663,31 @@ export default function CartView() {
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        {list.items.length} {t[lang].listItemsCount} • Saved on {new Date(list.createdAt).toLocaleDateString()}
+                        {list.items.length === 0 ? "⚠️ Empty List" : `${list.items.length} ${t[lang].listItemsCount}`} • Saved on {new Date(list.createdAt).toLocaleDateString()}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex gap-2 self-end sm:self-center">
+                  <div className="flex gap-1.5 items-center self-end sm:self-center">
                     <Button
                       size="sm"
                       variant={activeListId === list._id ? "default" : "outline"}
                       onClick={() => handleLoadList(list)}
-                      className="border-border text-foreground hover:bg-muted"
+                      className="border-border text-foreground hover:bg-muted font-bold text-xs"
                     >
                       {t[lang].loadList}
                     </Button>
+
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handlePrintSavedList(list)}
+                      title="Print or Save as PDF"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    >
+                      <Printer className="w-4 h-4" />
+                    </Button>
+
 
                     <Button
                       size="icon"

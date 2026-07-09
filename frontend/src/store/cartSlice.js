@@ -37,17 +37,22 @@ const cartSlice = createSlice({
     },
     // Loads list items and automatically flattens DB nested items if present
     loadCart: (state, action) => {
-      state.cart = action.payload.items.map((entry) => {
-        // If the item properties are nested inside a database 'item' field
-        if (entry.item) {
+      const rawItems = action.payload.items || [];
+
+      const mapped = rawItems
+        .filter((entry) => entry && entry.item) // skip deleted/null items
+        .map((entry) => {
+          // Deep-clone via JSON to break any Immer/RTK freeze on the object
+          const it = JSON.parse(JSON.stringify(entry.item));
           return {
-            ...entry.item,
+            ...it,
             quantity: entry.quantity,
+            priceAtSave: entry.priceAtSave,
+            latestPrice: it.latestPrice ?? entry.priceAtSave ?? 0,
           };
-        }
-        // Otherwise, return as-is if already in flat cart format
-        return entry;
-      });
+        });
+      
+      state.cart = mapped;
       state.activeListId = action.payload._id;
       state.activeListName = action.payload.name;
     },
