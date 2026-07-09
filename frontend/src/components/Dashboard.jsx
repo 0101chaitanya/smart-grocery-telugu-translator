@@ -15,6 +15,7 @@ import {
   useLogoutMutation,
   useRegenerateItemMutation,
   useGetItemTrendsQuery,
+  useUpdateStockMutation,
 } from "../store/apiSlice";
 import { addToCart, clearActiveList } from "../store/cartSlice";
 
@@ -25,15 +26,36 @@ export default function Dashboard() {
   const cart = useSelector((state) => state.cartState.cart);
 
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [itemInput, setItemInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   
   const [regeneratingId, setRegeneratingId] = useState(null);
   const [showTrendsId, setShowTrendsId] = useState(null);
 
-  const { data: items = [], isLoading } = useGetItemsQuery(search);
+  const { data: items = [], isLoading } = useGetItemsQuery({ search, category: selectedCategory });
   const [lookupItem, { isLoading: isLookingUp }] = useLookupItemMutation();
   const [regenerateItem] = useRegenerateItemMutation();
+  const [updateStock] = useUpdateStockMutation();
+
+  const [editingStockId, setEditingStockId] = useState(null);
+  const [inputStock, setInputStock] = useState("");
+  const [inputPrice, setInputPrice] = useState("");
+
+  const handleUpdateStockSubmit = async (itemId) => {
+    try {
+      await updateStock({
+        id: itemId,
+        stock: inputStock !== "" ? Number(inputStock) : undefined,
+        price: inputPrice !== "" ? Number(inputPrice) : undefined
+      }).unwrap();
+      setEditingStockId(null);
+      setInputStock("");
+      setInputPrice("");
+    } catch (err) {
+      console.error("Failed to update stock/price:", err);
+    }
+  };
 
   const refreshedIdsRef = useRef(new Set());
 
@@ -153,48 +175,70 @@ export default function Dashboard() {
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {/* Translate & Add Form */}
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-          <h3 className="font-bold text-foreground flex items-center gap-2 mb-4">
-            <PlusCircle className="w-5 h-5 text-muted-foreground" />
-            {t[lang].addSection}
-          </h3>
-          {errorMsg && (
-            <p className="text-xs text-red-500 bg-red-50/10 p-2.5 rounded-lg border border-red-500/20 mb-4">
-              {errorMsg}
-            </p>
-          )}
-          <form onSubmit={handleLookupAndAdd} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">
-                {t[lang].inputLabel}
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                  type="text"
-                  value={itemInput}
-                  onChange={(e) => setItemInput(e.target.value)}
-                  placeholder={t[lang].inputPlaceholder}
-                  required
-                  className="flex-1 text-foreground bg-background border-border"
-                />
-                <Button type="submit" disabled={isLookingUp} className="w-full sm:w-auto font-semibold">
-                  {isLookingUp ? t[lang].translating : t[lang].submit}
-                </Button>
+        {userData?.user?.role === 'seller' && (
+          <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+            <h3 className="font-bold text-foreground flex items-center gap-2 mb-4">
+              <PlusCircle className="w-5 h-5 text-muted-foreground" />
+              {t[lang].addSection}
+            </h3>
+            {errorMsg && (
+              <p className="text-xs text-red-500 bg-red-50/10 p-2.5 rounded-lg border border-red-500/20 mb-4">
+                {errorMsg}
+              </p>
+            )}
+            <form onSubmit={handleLookupAndAdd} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  {t[lang].inputLabel}
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    type="text"
+                    value={itemInput}
+                    onChange={(e) => setItemInput(e.target.value)}
+                    placeholder={t[lang].inputPlaceholder}
+                    required
+                    className="flex-1 text-foreground bg-background border-border"
+                  />
+                  <Button type="submit" disabled={isLookingUp} className="w-full sm:w-auto font-semibold">
+                    {isLookingUp ? t[lang].translating : t[lang].submit}
+                  </Button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        )}
 
-        {/* Search bar */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <Input
-            type="text"
-            placeholder={t[lang].searchPlaceholder}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 py-5 rounded-xl border-border bg-card shadow-sm text-foreground"
-          />
+        {/* Search bar and Category Filter */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Input
+              type="text"
+              placeholder={t[lang].searchPlaceholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 py-5 rounded-xl border-border bg-card shadow-sm text-foreground w-full"
+            />
+          </div>
+          
+          {userData?.user?.role === 'seller' && (
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="h-11 px-4 rounded-xl border border-border bg-card shadow-sm text-foreground font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+            >
+              <option value="All">All Categories</option>
+              <option value="Vegetables">{t[lang].categories.Vegetables || "Vegetables"}</option>
+              <option value="Fruits">{t[lang].categories.Fruits || "Fruits"}</option>
+              <option value="Groceries">{t[lang].categories.Groceries || "Groceries"}</option>
+              <option value="Spices">{t[lang].categories.Spices || "Spices"}</option>
+              <option value="Dairy">{t[lang].categories.Dairy || "Dairy"}</option>
+              <option value="Beverages">{t[lang].categories.Beverages || "Beverages"}</option>
+              <option value="Snacks">{t[lang].categories.Snacks || "Snacks & Sweets"}</option>
+              <option value="Others">{t[lang].categories.Others || "Others"}</option>
+            </select>
+          )}
         </div>
 
         {/* Items list */}
@@ -203,7 +247,7 @@ export default function Dashboard() {
             Loading catalog...
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {items.map((item) => {
               const diffPercent = item.avgPrice > 0 && item.latestPrice > 0
                 ? Math.round(((item.latestPrice - item.avgPrice) / item.avgPrice) * 100)
@@ -212,7 +256,11 @@ export default function Dashboard() {
               return (
                 <div
                   key={item._id}
-                  className="bg-card p-4 rounded-xl border border-border flex flex-col justify-between hover:shadow-md hover:shadow-primary/5 hover:-translate-y-0.5 hover:border-primary/20 transition-all duration-200"
+                  className={`bg-card p-4 rounded-xl border flex flex-col justify-between hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
+                    userData?.user?.role !== 'seller' && item.stock === 0
+                      ? 'border-rose-500/30 bg-rose-500/[0.02] shadow-sm shadow-rose-500/[0.02]'
+                      : 'border-border hover:shadow-primary/5 hover:border-primary/20'
+                  }`}
                 >
                   <div className="space-y-4">
                     <div className="flex gap-4">
@@ -221,18 +269,36 @@ export default function Dashboard() {
                           src={item.imageUrl}
                           alt={getItemNameDisplay(item)}
                           referrerPolicy="no-referrer"
-                          className="w-16 h-16 rounded-lg object-cover bg-background border border-border shrink-0 shadow-sm"
+                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg object-cover bg-background border border-border shrink-0 shadow-sm"
                         />
                       ) : (
-                        <div className="w-16 h-16 rounded-lg bg-muted border border-border shrink-0 flex items-center justify-center text-muted-foreground">
-                          <Package className="w-6 h-6 stroke-[1.5]" />
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0 flex items-center justify-center text-4xl sm:text-5xl font-bold uppercase select-none">
+                          {getItemNameDisplay(item).charAt(0).toUpperCase()}
                         </div>
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${categoryColors[item.category] || categoryColors.Others}`}>
-                          {t[lang].categories[item.category] || item.category}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${categoryColors[item.category] || categoryColors.Others}`}>
+                            {t[lang].categories[item.category] || item.category}
+                          </span>
+                          {userData?.user?.role !== 'seller' && (
+                            item.stock === 0 ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md font-extrabold uppercase bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                ⚠️ Out of Stock
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md font-extrabold uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                🟢 {item.stock} left
+                              </span>
+                            )
+                          )}
+                          {userData?.user?.role === 'seller' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-md font-extrabold uppercase bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+                              📦 Stock: {item.stock}
+                            </span>
+                          )}
+                        </div>
                         <h3 className="font-bold text-foreground text-lg mt-1.5 truncate">
                           {getItemNameDisplay(item)}
                         </h3>
@@ -270,6 +336,52 @@ export default function Dashboard() {
                     {showTrendsId === item._id && (
                       <ItemTrendsDrawer itemId={item._id} lang={lang} />
                     )}
+
+                    {/* Inline stock manager panel */}
+                    {userData?.user?.role === 'seller' && editingStockId === item._id && (
+                      <div className="bg-muted border border-border/70 rounded-lg p-3 space-y-2 mt-2">
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Update Inventory Level & Price</div>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="Stock Level"
+                            value={inputStock}
+                            onChange={(e) => setInputStock(e.target.value)}
+                            className="h-8 text-xs bg-background"
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="New Price ₹"
+                            value={inputPrice}
+                            onChange={(e) => setInputPrice(e.target.value)}
+                            className="h-8 text-xs bg-background"
+                          />
+                          <div className="flex gap-1.5 shrink-0">
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateStockSubmit(item._id)}
+                              className="h-8 text-xs font-semibold px-3"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingStockId(null);
+                                setInputStock("");
+                                setInputPrice("");
+                              }}
+                              className="h-8 text-xs font-semibold px-2"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Buttons (Responsive Layout) */}
@@ -303,13 +415,29 @@ export default function Dashboard() {
                         {regeneratingId !== item._id && <span className="xs:hidden">Refresh</span>}
                       </Button>
 
-                      <Button
-                        size="sm"
-                        onClick={() => dispatch(addToCart(item))}
-                        className="h-8 gap-1.5 font-bold px-3"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Add
-                      </Button>
+                      {userData?.user?.role === 'seller' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingStockId(editingStockId === item._id ? null : item._id);
+                            setInputStock(item.stock.toString());
+                            setInputPrice(item.latestPrice ? item.latestPrice.toString() : "");
+                          }}
+                          className={`h-8 gap-1.5 font-bold px-3 ${editingStockId === item._id ? 'border-primary/50 text-primary bg-primary/5' : ''}`}
+                        >
+                          Manage Stock
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={item.stock === 0}
+                          onClick={() => dispatch(addToCart(item))}
+                          className="h-8 gap-1.5 font-bold px-3"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

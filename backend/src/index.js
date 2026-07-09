@@ -11,6 +11,8 @@ import itemsRouter from './routes/itemRoutes.js';
 import authRouter from './routes/authRoutes.js';
 import listRouter from './routes/listRoutes.js';
 import orderRouter from './routes/orderRoutes.js';
+import bcrypt from 'bcrypt';
+import User from './models/User.js';
 
 dotenv.config();
 
@@ -29,7 +31,35 @@ app.use(express.json());
 // Establish MongoDB Connection (Re-added)
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log('Successfully connected to local MongoDB instance'))
+  .then(async () => {
+    console.log('Successfully connected to local MongoDB instance');
+    
+    // Seed single Seller if not exists
+    try {
+      const sellerEmail = 'sellerUser1';
+      let seller = await User.findOne({ role: 'seller' });
+      const hashedPassword = await bcrypt.hash('sellerAdmin@123', 10);
+      
+      if (!seller) {
+        seller = new User({
+          name: 'Store Manager',
+          email: sellerEmail,
+          role: 'seller',
+          password: hashedPassword,
+          preferredLanguage: 'en'
+        });
+        await seller.save();
+        console.log('Seeded the single Seller account successfully: sellerUser1 / sellerAdmin@123');
+      } else {
+        seller.email = sellerEmail;
+        seller.password = hashedPassword;
+        await seller.save();
+        console.log('Updated Seller account credentials to: sellerUser1 / sellerAdmin@123');
+      }
+    } catch (seedErr) {
+      console.error('Error seeding Seller account:', seedErr);
+    }
+  })
   .catch((error) => console.error('MongoDB database connection error:', error));
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';

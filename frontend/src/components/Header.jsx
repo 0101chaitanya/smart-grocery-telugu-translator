@@ -46,7 +46,7 @@ export default function Header({ lang, userData, handleLogout, cartCount }) {
 
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Fresh List Button (Responsive text) */}
-          {activeListName && (
+          {activeListName && userData?.user?.role !== 'seller' && (
             <Button
               onClick={() => dispatch(clearActiveList())}
               variant="ghost"
@@ -79,31 +79,46 @@ export default function Header({ lang, userData, handleLogout, cartCount }) {
             </div>
           )}
 
-          {/* Orders History Link */}
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="rounded-full h-8 w-8 sm:w-auto sm:px-3 border-border bg-card text-foreground"
-          >
-            <Link to="/orders" className="flex items-center gap-1">
-              <ClipboardList className="w-4 h-4 text-emerald-500" />
-              <span className="hidden sm:inline text-xs font-semibold">{t[lang].ordersHistoryButton}</span>
-            </Link>
-          </Button>
+          {/* User Role Badge */}
+          {userData?.user && (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border shrink-0 ${
+              userData.user.role === 'seller'
+                ? 'border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            }`}>
+              {userData.user.role === 'seller' ? '🏪 Seller' : '🛒 Buyer'}
+            </span>
+          )}
 
-          {/* Cart Icon Link */}
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="relative rounded-full h-8 w-12 sm:w-auto sm:px-3 border-border bg-card text-foreground"
-          >
-            <Link to="/cart" className="flex items-center gap-1">
-              <ShoppingCart className="w-4 h-4" />
-              <span className="text-xs font-bold">{cartCount}</span>
-            </Link>
-          </Button>
+          {/* Orders History Link (Buyers only) */}
+          {userData?.user?.role !== 'seller' && (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="rounded-full h-8 w-8 sm:w-auto sm:px-3 border-border bg-card text-foreground"
+            >
+              <Link to="/orders" className="flex items-center gap-1">
+                <ClipboardList className="w-4 h-4 text-emerald-500" />
+                <span className="hidden sm:inline text-xs font-semibold">{t[lang].ordersHistoryButton}</span>
+              </Link>
+            </Button>
+          )}
+
+          {/* Cart Icon Link (Buyers only) */}
+          {userData?.user?.role !== 'seller' && (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="relative rounded-full h-8 w-12 sm:w-auto sm:px-3 border-border bg-card text-foreground"
+            >
+              <Link to="/cart" className="flex items-center gap-1">
+                <ShoppingCart className="w-4 h-4" />
+                <span className="text-xs font-bold">{cartCount}</span>
+              </Link>
+            </Button>
+          )}
 
           {/* Theme Toggle */}
           <Button

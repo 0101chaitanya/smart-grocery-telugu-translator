@@ -27,6 +27,14 @@ const userSchema = new mongoose.Schema(
       enum: ['en', 'te'],
       default: 'en',
     },
+    role: {
+      type: String,
+      enum: ['buyer', 'seller'],
+      default: 'buyer',
+    },
+    password: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

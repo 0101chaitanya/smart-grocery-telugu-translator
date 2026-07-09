@@ -178,13 +178,17 @@ export default function CartView() {
                     className="p-3.5 bg-muted/30 rounded-lg border border-border flex flex-col xs:flex-row xs:items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3">
-                      {entry.imageUrl && (
+                      {entry.imageUrl ? (
                         <img
                           src={entry.imageUrl}
                           alt={getItemNameDisplay(entry)}
                           referrerPolicy="no-referrer"
                           className="w-10 h-10 rounded object-cover border border-border shrink-0"
                         />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0 flex items-center justify-center text-lg font-bold uppercase select-none">
+                          {getItemNameDisplay(entry).charAt(0).toUpperCase()}
+                        </div>
                       )}
                       <div>
                         <h4 className="font-semibold text-sm text-foreground">

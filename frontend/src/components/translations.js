@@ -1,10 +1,10 @@
 export const t = {
   en: {
-    title: "Mana Grocery Tracker",
-    subtitle: "Bilingual Grocery Cart & Gemma Translator",
+    title: "Mana grocery store",
+    subtitle: "Bilingual Online Grocery Store & Gemma Translator",
     langButton: "తెలుగు",
-    welcome: "Welcome to Mana Grocery Tracker",
-    description: "Translate grocery lists, manage multiple persistent shopping lists, analyze mandi price spikes, and track inflation rates in real-time.",
+    welcome: "Welcome to Mana grocery store",
+    description: "Translate grocery items, manage shopping carts, buy products directly from the store manager, and track mandi price trends in real-time.",
     loginButton: "Login with Google Account",
     searchPlaceholder: "Search items (English or Telugu regional names)...",
     addSection: "Translate & Add New Item",
@@ -82,11 +82,11 @@ export const t = {
     backToCatalog: "Back to Catalog",
   },
   te: {
-    title: "మన గ్రోసరీ ట్రాకర్",
-    subtitle: "భాషా అనువాదం & గెమ్మా ట్రాన్స్‌లేటర్",
+    title: "మన గ్రోసరీ స్టోర్",
+    subtitle: "ద్విభాషా ఆన్‌లైన్ గ్రోసరీ స్టోర్ & గెమ్మా ట్రాన్స్‌లేటర్",
     langButton: "English",
-    welcome: "మన గ్రోసరీ ట్రాకర్‌కు స్వాగతం",
-    description: "సరుకులను అనువదించుకోండి, లిస్ట్‌లను మేనేజ్ చేయండి, మరియు ద్రవ్యోల్బణ మార్పులను ట్రాక్ చేయండి.",
+    welcome: "మన గ్రోసరీ స్టోర్‌కు స్వాగతం",
+    description: "సరుకులను సులభంగా అనువదించుకోండి, షాపింగ్ కార్ట్‌ను మేనేజ్ చేయండి, స్టోర్ మేనేజర్ నుండి నేరుగా కొనుగోలు చేయండి మరియు ధరలను ట్రాక్ చేయండి.",
     loginButton: "గూగుల్ ఖాతాతో లాగిన్ చేయండి",
     searchPlaceholder:
       "సరుకులు వెతకండి (ఇంగ్లీష్ లేదా తెలుగు ప్రాంతీయ పేర్లు)...",

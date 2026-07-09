@@ -11,19 +11,29 @@ router.use(protect);
 
 router.get('/', async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, category } = req.query;
     let query = {};
 
-    if (search) {
-      query = {
-        'translations.names': { $regex: search, $options: 'i' },
-      };
+    if (search && search.trim()) {
+      query['translations.names'] = { $regex: search.trim(), $options: 'i' };
     }
 
-    const items = await Item.find(query).lean();
+    if (category && category !== 'All') {
+      query.category = category;
+    }
+
+    let items = await Item.find(query).lean();
     if (items.length === 0) {
       return res.json([]);
     }
+
+    // Temporarily map items with no stock (null or undefined) to a default stock of 5
+    items = items.map(item => {
+      if (item.stock === undefined || item.stock === null) {
+        return { ...item, stock: 5 };
+      }
+      return item;
+    });
 
     const itemIds = items.map(item => item._id);
 
@@ -121,6 +131,10 @@ function extractJSON(text) {
 // 2. POST /api/items/lookup - Search DB or auto-generate transliterations
 router.post('/lookup', async (req, res) => {
   try {
+    if (req.user.role !== 'seller') {
+      return res.status(403).json({ error: 'Only sellers can add new items to the catalog.' });
+    }
+
     const { name } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Item name is required' });
@@ -130,7 +144,7 @@ router.post('/lookup', async (req, res) => {
 
     // Search database for existing item matching this name
     const existingItem = await Item.findOne({
-      'translations.names': { $regex: `^${trimmedName}$`, $options: 'i' },
+      'translations.names': { $regex: `^${trimmedName}$`, $options: 'i' }
     });
 
     if (existingItem) {
@@ -174,7 +188,7 @@ Return ONLY a strict JSON object with this shape:
             Authorization: `Bearer ${openRouterApiKey}`,
             'Content-Type': 'application/json',
             'HTTP-Referer': 'http://localhost:3000',
-            'X-Title': 'Mana Grocery Tracker',
+            'X-Title': 'Mana grocery store',
           },
           body: JSON.stringify({
             model: 'openrouter/free',
@@ -198,10 +212,48 @@ Return ONLY a strict JSON object with this shape:
       const rawContent = result.choices[0].message.content;
       generatedData = extractJSON(rawContent);
     } catch (apiError) {
-      console.warn('API translation failed:', apiError.message);
-      return res.status(503).json({
-        error: 'Our translation system is temporarily busy. Please check your connection or try again.',
-      });
+      console.warn('API translation failed, using local safe fallback:', apiError.message);
+      
+      // Fallback inference logic
+      let inferredCategory = 'Groceries';
+      let inferredUnit = 'kg';
+
+      const lowerName = trimmedName.toLowerCase();
+      const vegKeywords = ['onion', 'tomato', 'potato', 'chilli', 'garlic', 'ginger', 'carrot', 'cabbage', 'aloo', 'ఉల్లి', 'టమో', 'బంగా', 'కూరగాయ'];
+      const fruitKeywords = ['apple', 'banana', 'mango', 'grape', 'orange', 'యాపి', 'అరటి', 'మామి', 'పండు'];
+      const spiceKeywords = ['masala', 'powder', 'pepper', 'cardamom', 'clove', 'cinnamon', 'కారం', 'పసుపు', 'మసాలా'];
+      const dairyKeywords = ['milk', 'curd', 'paneer', 'butter', 'ghee', 'yogurt', 'cheese', 'పాలు', 'నెయ్యి', 'పనీర్'];
+      const beverageKeywords = ['tea', 'coffee', 'cola', 'pepsi', 'drink', 'soda', 'juice', 'టీ', 'కాఫీ', 'పానీయం'];
+      const snackKeywords = ['chips', 'biscuit', 'chocolate', 'namkeen', 'bhujia', 'బిస్కె', 'తినుబండ'];
+
+      if (vegKeywords.some(kw => lowerName.includes(kw))) {
+        inferredCategory = 'Vegetables';
+      } else if (fruitKeywords.some(kw => lowerName.includes(kw))) {
+        inferredCategory = 'Fruits';
+        inferredUnit = 'pcs';
+      } else if (spiceKeywords.some(kw => lowerName.includes(kw))) {
+        inferredCategory = 'Spices';
+        inferredUnit = 'g';
+      } else if (dairyKeywords.some(kw => lowerName.includes(kw))) {
+        inferredCategory = 'Dairy';
+        inferredUnit = 'L';
+      } else if (beverageKeywords.some(kw => lowerName.includes(kw))) {
+        inferredCategory = 'Beverages';
+        inferredUnit = 'pack';
+      } else if (snackKeywords.some(kw => lowerName.includes(kw))) {
+        inferredCategory = 'Snacks';
+        inferredUnit = 'pack';
+      }
+
+      generatedData = {
+        category: inferredCategory,
+        defaultUnit: inferredUnit,
+        estimatedPrice: 35,
+        translations: [
+          { languageCode: 'en', names: [trimmedName] },
+          { languageCode: 'te', names: [trimmedName] }
+        ]
+      };
     }
 
     if (!generatedData.category || generatedData.category === 'Others') {
@@ -225,6 +277,8 @@ Return ONLY a strict JSON object with this shape:
       defaultUnit: generatedData.defaultUnit || 'kg',
       translations: generatedData.translations,
       imageUrl: imageUrl,
+      seller: req.user._id,
+      stock: 0
     });
 
     await newItem.save();
@@ -250,10 +304,14 @@ Return ONLY a strict JSON object with this shape:
 // 3. PUT /api/items/:id/regenerate - Re-trigger LLM translation and image generation
 router.put('/:id/regenerate', async (req, res) => {
   try {
+    if (req.user.role !== 'seller') {
+      return res.status(403).json({ error: 'Only sellers can modify items.' });
+    }
+
     const { id } = req.params;
     const item = await Item.findById(id);
     if (!item) {
-      return res.status(404).json({ error: 'Item not found' });
+      return res.status(404).json({ error: 'Item not found.' });
     }
 
     const englishTranslation = item.translations.find(
@@ -300,7 +358,7 @@ Return ONLY a strict JSON object with this shape:
           Authorization: `Bearer ${openRouterApiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'http://localhost:3000',
-          'X-Title': 'Mana Grocery Tracker',
+          'X-Title': 'Mana grocery store',
         },
         body: JSON.stringify({
           model: 'openrouter/free',
@@ -458,6 +516,42 @@ router.get('/:id/trends', protect, async (req, res) => {
     });
 
     res.json(formattedTrends);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. PUT /api/items/:id/stock - Update stock and latest price (Sellers only)
+router.put('/:id/stock', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'seller') {
+      return res.status(403).json({ error: 'Only sellers can manage stock.' });
+    }
+
+    const { id } = req.params;
+    const { stock, price } = req.body;
+    
+    const item = await Item.findById(id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found.' });
+    }
+
+    if (stock !== undefined) {
+      item.stock = Number(stock);
+    }
+    await item.save();
+
+    if (price !== undefined && Number(price) > 0) {
+      const newPrice = new PriceRecord({
+        item: item._id,
+        price: Number(price),
+        user: req.user._id
+      });
+      await newPrice.save();
+    }
+
+    // Return the updated item
+    res.json({ message: 'Stock and price updated successfully', item });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

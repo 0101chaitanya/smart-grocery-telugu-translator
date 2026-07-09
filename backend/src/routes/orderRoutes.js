@@ -1,5 +1,6 @@
 import express from 'express';
 import Order from '../models/Order.js';
+import Item from '../models/Item.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -52,6 +53,34 @@ router.post('/', async (req, res) => {
     }
     if (!items || items.length === 0) {
       return res.status(400).json({ error: "Order cart cannot be empty" });
+    }
+
+    // Verify stock availability
+    for (const entry of items) {
+      const itemRecord = await Item.findById(entry._id);
+      if (!itemRecord) {
+        return res.status(404).json({ error: `Item not found in catalog.` });
+      }
+
+      // Enforce stock limits on all items (temporarily fallback null/undefined to 5)
+      const effectiveStock = (itemRecord.stock === undefined || itemRecord.stock === null) ? 5 : itemRecord.stock;
+      if (effectiveStock < entry.quantity) {
+        const enTrans = itemRecord.translations.find(t => t.languageCode === 'en');
+        const name = enTrans ? enTrans.names[0] : 'Item';
+        return res.status(400).json({
+          error: `Inadequate stock for "${name}". Available: ${effectiveStock}, requested: ${entry.quantity}.`
+        });
+      }
+    }
+
+    // Deduct stock
+    for (const entry of items) {
+      const itemRecord = await Item.findById(entry._id);
+      if (itemRecord) {
+        const effectiveStock = (itemRecord.stock === undefined || itemRecord.stock === null) ? 5 : itemRecord.stock;
+        itemRecord.stock = Math.max(0, effectiveStock - entry.quantity);
+        await itemRecord.save();
+      }
     }
 
     const formattedItems = items.map(entry => ({

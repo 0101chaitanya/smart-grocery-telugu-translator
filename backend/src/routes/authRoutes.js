@@ -1,6 +1,8 @@
 import express from 'express';
 import User from '../models/User.js';
 import passport from 'passport';
+import bcrypt from 'bcrypt';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -102,6 +104,49 @@ router.post('/logout', (req, res, next) => {
       res.clearCookie('connect.sid', clearCookieOptions);
       return res.status(500).json({ error: innerError.message });
     }
+  }
+});
+
+// 5. POST /api/auth/seller/login - Authenticate seller using email & password
+router.post('/seller/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const user = await User.findOne({
+      email: new RegExp('^' + email.trim() + '$', 'i'),
+      role: 'seller'
+    });
+    if (!user || !user.password) {
+      return res.status(401).json({ error: 'Invalid seller credentials' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid seller credentials' });
+    }
+
+    // Log user in using Passport session serialization
+    req.login(user, (err) => {
+      if (err) {
+        console.error("Passport login error:", err);
+        return next(err);
+      }
+      return res.json({
+        message: 'Seller logged in successfully',
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          preferredLanguage: user.preferredLanguage,
+        }
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

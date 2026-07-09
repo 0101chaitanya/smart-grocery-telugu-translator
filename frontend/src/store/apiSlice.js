@@ -28,9 +28,12 @@ export const groceryApi = createApi({
       }),
       invalidatesTags: ["User"],
     }),
-    // C. Get Items Catalog
     getItems: builder.query({
-      query: (search) => `/items?search=${encodeURIComponent(search)}`,
+      query: (params) => {
+        const search = typeof params === 'string' ? params : (params?.search || "");
+        const category = typeof params === 'object' && params?.category ? params.category : "";
+        return `/items?search=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}`;
+      },
       providesTags: ["Item"],
     }),
     // D. Gemma Lookup
@@ -104,6 +107,22 @@ export const groceryApi = createApi({
       query: () => "/orders",
       providesTags: ["Order"],
     }),
+    sellerLogin: builder.mutation({
+      query: (credentials) => ({
+        url: "/auth/seller/login",
+        method: "POST",
+        body: credentials,
+      }),
+      invalidatesTags: ["User", "Item"],
+    }),
+    updateStock: builder.mutation({
+      query: ({ id, stock, price }) => ({
+        url: `/items/${id}/stock`,
+        method: "PUT",
+        body: { stock, price },
+      }),
+      invalidatesTags: ["Item"],
+    }),
   }),
 });
 
@@ -122,4 +141,6 @@ export const {
   useCreateOrderMutation,
   useGetOrderStatusQuery,
   useGetOrdersQuery,
+  useSellerLoginMutation,
+  useUpdateStockMutation,
 } = groceryApi;

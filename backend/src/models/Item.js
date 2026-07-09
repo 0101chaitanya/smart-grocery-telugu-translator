@@ -33,6 +33,14 @@ const itemSchema = new mongoose.Schema(
     imageUrl: {
       type: String,
     },
+    seller: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    stock: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
