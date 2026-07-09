@@ -20,7 +20,7 @@ const itemSchema = new mongoose.Schema(
   {
     category: {
       type: String,
-      enum: ['Groceries', 'Vegetables', 'Fruits', 'Spices', 'Others'],
+      enum: ['Groceries', 'Vegetables', 'Fruits', 'Spices', 'Dairy', 'Beverages', 'Snacks', 'Others'],
       required: true,
     },
     defaultUnit: {

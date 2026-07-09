@@ -37,13 +37,21 @@ router.get('/', async (req, res) => {
       for (const item of itemsToSeed) {
         const basePrice = Math.floor(Math.random() * 50) + 30;
         const seeds = [
+          { weeksAgo: 6, priceChange: -8 },
+          { weeksAgo: 4, priceChange: -4 },
+          { weeksAgo: 2, priceChange: 4 },
+          { daysAgo: 5, priceChange: -2 },
           { daysAgo: 3, priceChange: -5 },
           { daysAgo: 2, priceChange: 5 },
           { daysAgo: 1, priceChange: 0 },
         ];
         for (const seed of seeds) {
           const seedDate = new Date();
-          seedDate.setDate(seedDate.getDate() - seed.daysAgo);
+          if (seed.weeksAgo) {
+            seedDate.setDate(seedDate.getDate() - (seed.weeksAgo * 7));
+          } else if (seed.daysAgo) {
+            seedDate.setDate(seedDate.getDate() - seed.daysAgo);
+          }
           seedRecords.push({
             item: item._id,
             price: basePrice + seed.priceChange,
@@ -53,7 +61,7 @@ router.get('/', async (req, res) => {
         }
       }
       if (seedRecords.length > 0) {
-        await PriceRecord.insertMany(seedRecords);
+        await PriceRecord.insertMany(seedRecords, { timestamps: false });
       }
     }
 
@@ -62,12 +70,14 @@ router.get('/', async (req, res) => {
 
     // Group price logs in-memory
     const pricesMap = {};
+    const latestPriceDateMap = {};
     allPrices.forEach(record => {
       const itemIdStr = record.item.toString();
       if (!pricesMap[itemIdStr]) {
         pricesMap[itemIdStr] = [];
       }
       pricesMap[itemIdStr].push(record.price);
+      latestPriceDateMap[itemIdStr] = record.createdAt;
     });
 
     // 3. Map and enrich items list
@@ -82,8 +92,10 @@ router.get('/', async (req, res) => {
       }
 
       const itemPrices = pricesMap[item._id.toString()] || [];
+      const lastDate = latestPriceDateMap[item._id.toString()];
       
       item.latestPrice = itemPrices.length > 0 ? itemPrices[itemPrices.length - 1] : 0;
+      item.lastPriceUpdated = lastDate ? lastDate.toISOString() : null;
       
       if (itemPrices.length > 0) {
         const total = itemPrices.reduce((sum, p) => sum + p, 0);
@@ -135,11 +147,11 @@ router.post('/lookup', async (req, res) => {
 
     const systemPrompt = `You are an AI assistant for a grocery translation app in India.
 Translate the input name into English and Telugu. Provide common Telugu regional variations (e.g. for Onion: ["ఉల్లిపాయ", "ఎర్రగడ్డ"]).
-Detect the correct category (Groceries, Vegetables, Fruits, Spices, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
+Detect the correct category (Groceries, Vegetables, Fruits, Spices, Dairy, Beverages, Snacks, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
 Estimate a typical current retail market price in India (in INR ₹ per defaultUnit) and a normal price range (min/max). Ensure the pricing feels realistic for Indian local markets.
 Return ONLY a strict JSON object with this shape:
 {
-  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Others",
+  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Dairy" | "Beverages" | "Snacks" | "Others",
   "defaultUnit": "kg" | "g" | "L" | "ml" | "pcs" | "pack",
   "estimatedPrice": 40,
   "priceRangeMin": 30,
@@ -186,19 +198,16 @@ Return ONLY a strict JSON object with this shape:
       const rawContent = result.choices[0].message.content;
       generatedData = extractJSON(rawContent);
     } catch (apiError) {
-      console.warn(
-        'API translation failed, applying graceful fallback:',
-        apiError.message
-      );
-      generatedData = {
-        category: 'Others',
-        defaultUnit: 'kg',
-        estimatedPrice: 30,
-        translations: [
-          { languageCode: 'en', names: [trimmedName] },
-          { languageCode: 'te', names: [trimmedName] },
-        ],
-      };
+      console.warn('API translation failed:', apiError.message);
+      return res.status(503).json({
+        error: 'Our translation system is temporarily busy. Please check your connection or try again.',
+      });
+    }
+
+    if (!generatedData.category || generatedData.category === 'Others') {
+      return res.status(400).json({
+        error: `"${trimmedName}" is categorized as 'Others' (not a grocery item) and cannot be added. Please enter a valid grocery, vegetable, fruit, spice, dairy, beverage, or snack name.`,
+      });
     }
 
     const englishTranslation = generatedData.translations.find(
@@ -212,7 +221,7 @@ Return ONLY a strict JSON object with this shape:
     const imageUrl = `https://image.pollinations.ai/prompt/fresh%20${encodeURIComponent(primaryEnglishName)}%20grocery%20item%20isolated%20on%20white%20background?width=300&height=300&nologo=true`;
 
     const newItem = new Item({
-      category: generatedData.category || 'Others',
+      category: generatedData.category,
       defaultUnit: generatedData.defaultUnit || 'kg',
       translations: generatedData.translations,
       imageUrl: imageUrl,
@@ -268,11 +277,11 @@ router.put('/:id/regenerate', async (req, res) => {
 
     const systemPrompt = `You are an AI assistant for a grocery translation app in India.
 Translate the input name into English and Telugu. Provide common Telugu regional variations (e.g. ["ఉల్లిపాయ", "ఎర్రగడ్డ"]).
-Detect the correct category (Groceries, Vegetables, Fruits, Spices, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
+Detect the correct category (Groceries, Vegetables, Fruits, Spices, Dairy, Beverages, Snacks, Others) and defaultUnit (kg, g, L, ml, pcs, pack).
 Estimate a typical current retail market price in India (in INR ₹ per defaultUnit) and a normal price range (min/max). Ensure the pricing feels realistic for Indian local markets.
 Return ONLY a strict JSON object with this shape:
 {
-  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Others",
+  "category": "Groceries" | "Vegetables" | "Fruits" | "Spices" | "Dairy" | "Beverages" | "Snacks" | "Others",
   "defaultUnit": "kg" | "g" | "L" | "ml" | "pcs" | "pack",
   "estimatedPrice": 40,
   "priceRangeMin": 30,
@@ -385,20 +394,25 @@ router.post('/:id/prices', protect, async (req, res) => {
   }
 });
 
-// 1.1 GET /api/items/:id/trends - Group and retrieve price logs over Day/Week/Month/Year
+// 1.1 GET /api/items/:id/trends - Group and retrieve price logs over Day/Week
 router.get('/:id/trends', protect, async (req, res) => {
   try {
     const { id } = req.params;
-    const { period } = req.query; // 'day' | 'week' | 'month' | 'year'
+    const { period } = req.query; // 'day' | 'week'
 
     // Set aggregation grouping string pattern based on period
     let format = '%Y-%m-%d'; // default Day
-    if (period === 'week') format = '%Y-W%V';
-    else if (period === 'month') format = '%Y-%m';
-    else if (period === 'year') format = '%Y';
+    if (period === 'week') {
+      format = '%Y-W%V';
+    }
 
     const trends = await PriceRecord.aggregate([
-      { $match: { item: new mongoose.Types.ObjectId(id) } },
+      { 
+        $match: { 
+          item: new mongoose.Types.ObjectId(id),
+          user: new mongoose.Types.ObjectId(req.user._id)
+        } 
+      },
       {
         $group: {
           _id: { $dateToString: { format: format, date: '$createdAt' } },
@@ -411,13 +425,37 @@ router.get('/:id/trends', protect, async (req, res) => {
       { $sort: { _id: 1 } }, // Sort chronologically
     ]);
 
-    const formattedTrends = trends.map((t) => ({
-      label: t._id,
-      avgPrice: Math.round(t.avgPrice * 100) / 100,
-      minPrice: t.minPrice,
-      maxPrice: t.maxPrice,
-      count: t.count,
-    }));
+    const formattedTrends = trends.map((t) => {
+      let label = t._id;
+      if (period === 'week' && t._id.includes('-W')) {
+        const parts = t._id.split('-W');
+        const year = parseInt(parts[0], 10);
+        const week = parseInt(parts[1], 10);
+        
+        // Calculate the Monday of that ISO week number
+        const simple = new Date(year, 0, 1 + (week - 1) * 7);
+        const dow = simple.getDay();
+        const monday = new Date(simple);
+        if (dow <= 4) {
+          monday.setDate(simple.getDate() - simple.getDay() + 1);
+        } else {
+          monday.setDate(simple.getDate() + 8 - simple.getDay());
+        }
+        
+        const yyyy = monday.getFullYear();
+        const mm = String(monday.getMonth() + 1).padStart(2, '0');
+        const dd = String(monday.getDate()).padStart(2, '0');
+        label = `${yyyy}-${mm}-${dd}`;
+      }
+
+      return {
+        label,
+        avgPrice: Math.round(t.avgPrice * 100) / 100,
+        minPrice: t.minPrice,
+        maxPrice: t.maxPrice,
+        count: t.count,
+      };
+    });
 
     res.json(formattedTrends);
   } catch (error) {

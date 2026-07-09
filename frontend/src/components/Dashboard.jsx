@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, PlusCircle, Package, RefreshCw } from "lucide-react";
@@ -34,6 +34,45 @@ export default function Dashboard() {
   const { data: items = [], isLoading } = useGetItemsQuery(search);
   const [lookupItem, { isLoading: isLookingUp }] = useLookupItemMutation();
   const [regenerateItem] = useRegenerateItemMutation();
+
+  const refreshedIdsRef = useRef(new Set());
+
+  // Auto-refresh prices that are older than 24 hours on load
+  useEffect(() => {
+    if (items.length > 0) {
+      const now = new Date();
+      const oneDay = 24 * 60 * 60 * 1000;
+      
+      const toRefresh = items.filter(item => {
+        // Only trigger if we haven't processed it in this session yet
+        if (refreshedIdsRef.current.has(item._id)) {
+          return false;
+        }
+        
+        // Refresh if no timestamp exists or if the latest update was > 24 hours ago
+        if (!item.lastPriceUpdated) return true;
+        const lastUpdate = new Date(item.lastPriceUpdated);
+        return (now - lastUpdate) > oneDay;
+      });
+
+      if (toRefresh.length > 0) {
+        // Register items immediately to prevent loops
+        toRefresh.forEach(item => refreshedIdsRef.current.add(item._id));
+
+        const triggerRefreshes = async () => {
+          // Process sequentially to prevent concurrent API rate-limits
+          for (const item of toRefresh) {
+            try {
+              await regenerateItem(item._id).unwrap();
+            } catch (err) {
+              console.error("Auto-price-refresh failed for item:", item._id, err);
+            }
+          }
+        };
+        triggerRefreshes();
+      }
+    }
+  }, [items, regenerateItem]);
 
   const { data: userData } = useGetMeQuery();
   const [logout] = useLogoutMutation();
@@ -97,6 +136,9 @@ export default function Dashboard() {
     Fruits: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
     Groceries: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
     Spices: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+    Dairy: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20",
+    Beverages: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-500/20",
+    Snacks: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20",
     Others: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
   };
 
@@ -280,83 +322,111 @@ export default function Dashboard() {
   );
 }
 
-// Sub-component: Displays interactive trends chart and period selections
-function ItemTrendsDrawer({ itemId, lang }) {
-  const [period, setPeriod] = useState("day");
-  const { data: trendData = [], isLoading } = useGetItemTrendsQuery({ id: itemId, period });
+// Sub-component: Displays interactive mini trends chart for a specific period with magnified price scales and color cues
+function MiniTrendChart({ trendData, period }) {
+  if (trendData.length === 0) {
+    return <div className="text-[9px] text-muted-foreground/50 italic py-4 text-center">No history logged</div>;
+  }
 
-  const periods = [
-    { key: "day", label: t[lang].dayLabel },
-    { key: "week", label: t[lang].weekLabel },
-    { key: "month", label: t[lang].monthLabel },
-    { key: "year", label: t[lang].yearLabel },
-  ];
+  const displayItems = trendData.slice(-4); // last 4 data points
+  const prices = displayItems.map((d) => d.avgPrice);
+  
+  // Dynamic scale calculation to amplify fluctuations
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
 
   return (
-    <div className="bg-muted/30 border border-border/50 rounded-lg p-3 space-y-3 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-foreground">{t[lang].priceTrends}</span>
-        {/* Period Selector Tabs */}
-        <div className="flex bg-muted rounded p-0.5 border border-border">
-          {periods.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setPeriod(p.key)}
-              className={`text-[9px] px-2 py-0.5 rounded font-bold transition ${
-                period === p.key
-                  ? "bg-card text-foreground shadow-sm animate-in fade-in scale-in-95 duration-100"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+    <div className="flex items-end justify-between h-16 gap-2 pt-5 border-b border-border/30 pb-1">
+      {displayItems.map((data, index) => {
+        // Calculate height. If there is a range, amplify differences; otherwise default to 60%.
+        let barHeight = 60;
+        if (priceRange > 0) {
+          const ratio = (data.avgPrice - minPrice) / priceRange; // 0 to 1
+          barHeight = Math.round(25 + ratio * 65); // scales height from 25% to 90%
+        }
+
+        const currentPrice = data.avgPrice;
+        const prevPrice = index > 0 ? displayItems[index - 1].avgPrice : null;
+
+        // Color coding based on price direction (emerald for cheaper, rose for expensive)
+        let barColorClass = "bg-primary/10 hover:bg-primary/30 border-primary/20";
+        let priceColorClass = "text-muted-foreground";
+
+        if (prevPrice !== null) {
+          if (currentPrice < prevPrice) {
+            barColorClass = "bg-emerald-500/20 hover:bg-emerald-500/40 border-emerald-500/30";
+            priceColorClass = "text-emerald-600 dark:text-emerald-400 font-extrabold";
+          } else if (currentPrice > prevPrice) {
+            barColorClass = "bg-rose-500/20 hover:bg-rose-500/40 border-rose-500/30";
+            priceColorClass = "text-rose-600 dark:text-rose-400 font-extrabold";
+          }
+        }
+
+        let displayLabel = data.label;
+        if (data.label.includes('-')) {
+          const dateParts = data.label.split('-');
+          const shortDate = dateParts.slice(1).join('/');
+          displayLabel = period === 'week' ? `Wk ${shortDate}` : shortDate;
+        }
+
+        return (
+          <div key={index} className="flex-1 flex flex-col items-center relative group">
+            {/* Price tag displayed directly on top of the bar */}
+            <span className={`text-[8px] font-mono tracking-tighter mb-1 absolute bottom-full ${priceColorClass}`}>
+              ₹{currentPrice}
+            </span>
+            
+            {/* The bar */}
+            <div
+              style={{ height: `${barHeight}%` }}
+              className={`w-full rounded-t border transition-all duration-300 ${barColorClass}`}
+            />
+            
+            {/* Label */}
+            <span className="text-[7px] text-muted-foreground/90 mt-1 font-semibold whitespace-nowrap">
+              {displayLabel}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Sub-component: Displays daily and weekly trends side-by-side directly on the card
+function ItemTrendsDrawer({ itemId, lang }) {
+  const { data: dayTrends = [], isLoading: loadingDay } = useGetItemTrendsQuery({ id: itemId, period: 'day' });
+  const { data: weekTrends = [], isLoading: loadingWeek } = useGetItemTrendsQuery({ id: itemId, period: 'week' });
+
+  const isLoading = loadingDay || loadingWeek;
+
+  return (
+    <div className="bg-muted/10 border-l-2 border-l-primary/60 border-t border-r border-b border-border/40 rounded-r-lg p-3 space-y-3 mt-3.5 shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+      <div className="text-[10px] font-bold text-foreground/90 tracking-wider flex items-center justify-between pb-1.5 border-b border-border/30">
+        <span className="flex items-center gap-1">📊 {t[lang].priceTrends}</span>
+        <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest scale-90">Live</span>
       </div>
 
       {isLoading ? (
-        <div className="text-[10px] text-center text-muted-foreground py-4">Loading stats...</div>
-      ) : trendData.length === 0 ? (
-        <div className="text-[10px] text-center text-muted-foreground py-4">{t[lang].noTrends}</div>
+        <div className="text-[9px] text-center text-muted-foreground/80 py-4 animate-pulse">Loading trends...</div>
       ) : (
-        <div>
-          {/* Dynamic Pure CSS Bar Chart */}
-          {(() => {
-            const maxVal = Math.max(...trendData.map((d) => d.avgPrice), 1);
-            return (
-              <div className="flex items-end justify-between h-20 gap-2 pt-4 border-b border-border/50 mb-2">
-                {trendData.slice(-6).map((data, index) => {
-                  const barHeight = Math.round((data.avgPrice / maxVal) * 100);
-                  
-                  // Format label dynamically to look neat (shorten date formats)
-                  let displayLabel = data.label;
-                  if (data.label.includes('-') && (period === 'day' || period === 'month')) {
-                    displayLabel = data.label.split('-').slice(1).join('/');
-                  }
+        <div className="grid grid-cols-2 gap-4 divide-x divide-border/30">
+          {/* Day Trends */}
+          <div className="space-y-1">
+            <span className="text-[8px] font-bold text-muted-foreground/80 uppercase tracking-widest block flex items-center gap-1">
+              📅 {t[lang].dayLabel}
+            </span>
+            <MiniTrendChart trendData={dayTrends} period="day" />
+          </div>
 
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center group relative">
-                      {/* Bar columns */}
-                      <div
-                        style={{ height: `${barHeight}%` }}
-                        className="w-full bg-primary/20 hover:bg-primary rounded-t transition-all duration-300 relative"
-                      >
-                        {/* Hover Tooltip */}
-                        <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[9px] py-0.5 px-1.5 rounded shadow border border-border whitespace-nowrap mb-1 transition-opacity duration-150 pointer-events-none font-bold z-10">
-                          ₹{data.avgPrice}
-                        </div>
-                      </div>
-                      {/* Label under bar */}
-                      <span className="text-[8px] text-muted-foreground mt-1 truncate max-w-full font-semibold">
-                        {displayLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          {/* Week Trends */}
+          <div className="pl-4 space-y-1">
+            <span className="text-[8px] font-bold text-muted-foreground/80 uppercase tracking-widest block flex items-center gap-1">
+              🗓️ {t[lang].weekLabel}
+            </span>
+            <MiniTrendChart trendData={weekTrends} period="week" />
+          </div>
         </div>
       )}
     </div>
