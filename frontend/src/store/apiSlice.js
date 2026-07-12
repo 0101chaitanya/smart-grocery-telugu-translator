@@ -91,6 +91,21 @@ export const groceryApi = createApi({
       }),
       invalidatesTags: ["Order"],
     }),
+    initRazorpayOrder: builder.mutation({
+      query: (details) => ({
+        url: "/orders/razorpay/init",
+        method: "POST",
+        body: details,
+      }),
+    }),
+    verifyRazorpayPayment: builder.mutation({
+      query: (details) => ({
+        url: "/orders/razorpay/verify",
+        method: "POST",
+        body: details,
+      }),
+      invalidatesTags: ["Order"],
+    }),
     getOrderStatus: builder.query({
       query: (id) => `/orders/${id}`,
       providesTags: (result, error, id) => [{ type: "Order", id }],
@@ -130,6 +145,8 @@ export const {
   useUpdateListMutation,
   useGetItemTrendsQuery,
   useCreateOrderMutation,
+  useInitRazorpayOrderMutation,
+  useVerifyRazorpayPaymentMutation,
   useGetOrderStatusQuery,
   useGetOrdersQuery,
   useSellerLoginMutation,

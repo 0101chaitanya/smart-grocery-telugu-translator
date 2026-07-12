@@ -1,9 +1,12 @@
 import express from 'express';
+import crypto from 'crypto';
 import Order from '../models/Order.js';
 import Item from '../models/Item.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+const RAZORPAY_MOCK_SECRET = 'mock_secret_key_12345';
+
 
 router.use(protect);
 
@@ -40,7 +43,119 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 2. POST /api/orders - Place a new mock order
+// 2. POST /api/orders/razorpay/init - Initialize a Razorpay mock order
+router.post('/razorpay/init', async (req, res) => {
+  try {
+    const { amount, currency, receipt } = req.body;
+    
+    // Amount should be in paise
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    // Generate a mock Razorpay order ID
+    const randomChars = crypto.randomBytes(6).toString('hex');
+    const order_id = `order_mock_${randomChars}`;
+
+    res.json({
+      id: order_id,
+      amount: amount,
+      currency: currency || 'INR',
+      receipt: receipt || '',
+      status: 'created'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. POST /api/orders/razorpay/verify - Verify signature and place actual order
+router.post('/razorpay/verify', async (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      deliveryAddress,
+      phoneNumber,
+      items,
+      totalAmount
+    } = req.body;
+
+    // Verify signature
+    const text = razorpay_order_id + "|" + razorpay_payment_id;
+    const generated_signature = crypto
+      .createHmac('sha256', RAZORPAY_MOCK_SECRET)
+      .update(text)
+      .digest('hex');
+
+    if (generated_signature !== razorpay_signature) {
+      return res.status(400).json({ error: "Invalid payment signature" });
+    }
+
+    // Proceed with placing the order (from the original POST / logic)
+    if (!deliveryAddress || !deliveryAddress.trim()) {
+      return res.status(400).json({ error: "Delivery address is required" });
+    }
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({ error: "Phone number is required for delivery contact" });
+    }
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: "Order cart cannot be empty" });
+    }
+
+    // Verify stock availability
+    for (const entry of items) {
+      const itemRecord = await Item.findById(entry._id);
+      if (!itemRecord) {
+        return res.status(404).json({ error: `Item not found in catalog.` });
+      }
+
+      const effectiveStock = (itemRecord.stock === undefined || itemRecord.stock === null) ? 5 : itemRecord.stock;
+      if (effectiveStock < entry.quantity) {
+        const enTrans = itemRecord.translations.find(t => t.languageCode === 'en');
+        const name = enTrans ? enTrans.names[0] : 'Item';
+        return res.status(400).json({
+          error: `Inadequate stock for "${name}". Available: ${effectiveStock}, requested: ${entry.quantity}.`
+        });
+      }
+    }
+
+    // Deduct stock
+    for (const entry of items) {
+      const itemRecord = await Item.findById(entry._id);
+      if (itemRecord) {
+        const effectiveStock = (itemRecord.stock === undefined || itemRecord.stock === null) ? 5 : itemRecord.stock;
+        itemRecord.stock = Math.max(0, effectiveStock - entry.quantity);
+        await itemRecord.save();
+      }
+    }
+
+    const formattedItems = items.map(entry => ({
+      item: entry._id,
+      quantity: entry.quantity,
+      priceAtOrder: entry.latestPrice || 0
+    }));
+
+    const newOrder = new Order({
+      user: req.user._id,
+      items: formattedItems,
+      totalAmount,
+      deliveryAddress: deliveryAddress.trim(),
+      phoneNumber: phoneNumber.trim(),
+      paymentStatus: 'Paid',
+      deliveryStatus: 'Placed'
+    });
+
+    await newOrder.save();
+    
+    res.status(201).json(newOrder);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. POST /api/orders - Place a new mock order (Legacy)
 router.post('/', async (req, res) => {
   try {
     const { deliveryAddress, phoneNumber, items, totalAmount } = req.body;

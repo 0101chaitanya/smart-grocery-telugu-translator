@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import Header from "./Header";
 import { t } from "./translations";
 import { useState, useEffect } from "react";
+import RazorpayMockModal from "./RazorpayMockModal";
 
 import { 
   groceryApi,
   useGetMeQuery, 
   useLogoutMutation,
-  useCreateOrderMutation,
+  useInitRazorpayOrderMutation,
+  useVerifyRazorpayPaymentMutation,
   useGetOrderStatusQuery,
   useDeleteListMutation
 } from "../store/apiSlice";
@@ -33,9 +35,11 @@ export default function CheckoutPage() {
   const [activeOrderId, setActiveOrderId] = useState(orderIdFromUrl || null);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [cardNumber, setCardNumber] = useState("4111 2222 3333 4444");
-  const [cardExpiry, setCardExpiry] = useState("12/28");
-  const [cardCvv, setCardCvv] = useState("123");
+  
+  // Razorpay states
+  const [showMockGateway, setShowMockGateway] = useState(false);
+  const [razorpayOrder, setRazorpayOrder] = useState(null);
+  
   const [isPaying, setIsPaying] = useState(false);
   const [payError, setPayError] = useState("");
 
@@ -43,7 +47,8 @@ export default function CheckoutPage() {
   const [logout] = useLogoutMutation();
 
   // Order & List Hook instantiations
-  const [createOrder] = useCreateOrderMutation();
+  const [initRazorpayOrder] = useInitRazorpayOrderMutation();
+  const [verifyRazorpayPayment] = useVerifyRazorpayPaymentMutation();
   const [deleteList] = useDeleteListMutation();
 
   // Live order status polling (queries status from server every 5s)
@@ -77,33 +82,52 @@ export default function CheckoutPage() {
     if (!deliveryAddress.trim() || !phoneNumber.trim()) return;
 
     setIsPaying(true);
-    setTimeout(async () => {
-      try {
-        const order = await createOrder({
-          deliveryAddress: deliveryAddress.trim(),
-          phoneNumber: phoneNumber.trim(),
-          items: cart,
-          totalAmount: cart.reduce((sum, entry) => sum + (entry.quantity * (entry.latestPrice || 0)), 0)
-        }).unwrap();
+    try {
+      const amountInRupees = cart.reduce((sum, entry) => sum + (entry.quantity * (entry.latestPrice || 0)), 0);
+      const order = await initRazorpayOrder({
+        amount: Math.round(amountInRupees * 100), // convert to paise
+        currency: "INR",
+        receipt: `receipt_${Date.now()}`
+      }).unwrap();
 
-        // If checkout corresponds to a loaded saved list, automatically delete it from database
-        if (activeListId) {
-          try {
-            await deleteList(activeListId).unwrap();
-          } catch (deleteErr) {
-            console.error("Failed to delete ordered list:", deleteErr);
-          }
+      setRazorpayOrder(order);
+      setShowMockGateway(true);
+    } catch (err) {
+      setPayError(err.data?.error || "Failed to initialize order with mock gateway.");
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const handleRazorpaySuccess = async (paymentDetails) => {
+    setShowMockGateway(false);
+    setIsPaying(true);
+    try {
+      const order = await verifyRazorpayPayment({
+        ...paymentDetails,
+        deliveryAddress: deliveryAddress.trim(),
+        phoneNumber: phoneNumber.trim(),
+        items: cart,
+        totalAmount: cart.reduce((sum, entry) => sum + (entry.quantity * (entry.latestPrice || 0)), 0)
+      }).unwrap();
+
+      // If checkout corresponds to a loaded saved list, automatically delete it from database
+      if (activeListId) {
+        try {
+          await deleteList(activeListId).unwrap();
+        } catch (deleteErr) {
+          console.error("Failed to delete ordered list:", deleteErr);
         }
-
-        // Clear active staged items in Redux store
-        dispatch(clearActiveList());
-        setActiveOrderId(order._id);
-      } catch (err) {
-        setPayError(err.data?.error || "Mock payment transaction failed. Please try again.");
-      } finally {
-        setIsPaying(false);
       }
-    }, 1500);
+
+      // Clear active staged items in Redux store
+      dispatch(clearActiveList());
+      setActiveOrderId(order._id);
+    } catch (err) {
+      setPayError(err.data?.error || "Payment verification failed.");
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   const handleStartFreshOrder = () => {
@@ -345,88 +369,7 @@ export default function CheckoutPage() {
                 />
               </div>
 
-              {/* CSS Visual Credit Card Graphic */}
-              <div className="relative w-full h-44 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-emerald-950 p-6 text-white shadow-xl overflow-hidden border border-white/10 flex flex-col justify-between mb-4">
-                {/* Soft glow decoration */}
-                <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-indigo-500/10 blur-xl pointer-events-none" />
-
-                {/* Card Top: Chip and Brand */}
-                <div className="flex justify-between items-center relative z-10">
-                  {/* Gold Chip */}
-                  <div className="w-10 h-7 rounded bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                    <div className="grid grid-cols-3 gap-0.5 w-6 h-4 opacity-50">
-                      <div className="border border-amber-500/30"></div>
-                      <div className="border border-amber-500/30"></div>
-                      <div className="border border-amber-500/30"></div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-black tracking-widest text-emerald-400 uppercase">
-                    MANDI PAY
-                  </span>
-                </div>
-
-                {/* Card Number */}
-                <div className="text-lg sm:text-xl font-mono text-center tracking-widest text-white/90 relative z-10">
-                  {cardNumber || "•••• •••• •••• ••••"}
-                </div>
-
-                {/* Card Footer: Holder and Expiry */}
-                <div className="flex justify-between items-end text-xs relative z-10">
-                  <div>
-                    <span className="text-[8px] text-white/40 uppercase block font-bold tracking-wider">
-                      Cardholder
-                    </span>
-                    <span className="font-semibold tracking-wide uppercase truncate max-w-[120px] block">
-                      {userData?.user?.name || "Mana User"}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[8px] text-white/40 uppercase block font-bold tracking-wider">
-                      Expires
-                    </span>
-                    <span className="font-semibold tracking-widest">
-                      {cardExpiry || "MM/YY"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Prefilled Mock Credit Card Form details */}
-              <div className="p-4 bg-muted/30 border border-border/40 rounded-xl space-y-2">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">
-                  {t[lang].paymentLabel}
-                </span>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Input
-                    type="text"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                    placeholder="Card Number"
-                    required
-                    className="bg-background text-foreground border-border h-9 text-xs flex-1"
-                  />
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      value={cardExpiry}
-                      onChange={(e) => setCardExpiry(e.target.value)}
-                      placeholder="MM/YY"
-                      required
-                      className="bg-background text-foreground border-border h-9 text-xs w-16 text-center"
-                    />
-                    <Input
-                      type="password"
-                      value={cardCvv}
-                      onChange={(e) => setCardCvv(e.target.value)}
-                      placeholder="CVV"
-                      required
-                      className="bg-background text-foreground border-border h-9 text-xs w-16 text-center"
-                    />
-                  </div>
-                </div>
-              </div>
+              {/* The mock credit card graphic and fields are now removed. Razorpay Modal takes over. */}
 
               <Button
                 type="submit"
@@ -434,10 +377,17 @@ export default function CheckoutPage() {
                 className="w-full h-11 font-bold text-xs gap-1.5 shadow"
               >
                 <Sparkles className={`w-4 h-4 ${isPaying ? 'animate-spin' : ''}`} />
-                {isPaying ? "Connecting Simulated Payment Gateway..." : t[lang].placeOrderButton}
+                {isPaying ? "Connecting Simulated Payment Gateway..." : "Pay with Razorpay (Mock)"}
               </Button>
             </form>
           </div>
+        )}
+        {showMockGateway && razorpayOrder && (
+          <RazorpayMockModal 
+            order={razorpayOrder}
+            onSuccess={handleRazorpaySuccess}
+            onClose={() => setShowMockGateway(false)}
+          />
         )}
       </main>
     </div>
