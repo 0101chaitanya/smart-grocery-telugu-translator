@@ -87,7 +87,8 @@ export default function CheckoutPage() {
       const order = await initRazorpayOrder({
         amount: Math.round(amountInRupees * 100), // convert to paise
         currency: "INR",
-        receipt: `receipt_${Date.now()}`
+        receipt: `receipt_${Date.now()}`,
+        items: cart
       }).unwrap();
 
       setRazorpayOrder(order);
