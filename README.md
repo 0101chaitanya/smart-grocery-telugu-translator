@@ -1,4 +1,4 @@
-# 🛒 Smart Grocery Telugu Translator & Cart Tracker
+# 🛒 Mana Grocery Store
 
 A premium, fully responsive bilingual (English / Telugu) grocery list builder, real-time market tracker, and mock delivery checkout portal. 
 
@@ -14,9 +14,10 @@ A premium, fully responsive bilingual (English / Telugu) grocery list builder, r
 ## ✨ Core Features
 
 * **🌐 AI Bilingual Translator:** Instantly search and add grocery items in English, Telugu script (తెలుగు), or transliterated Telugu (e.g. *Tomato*, *టమోటా*, *Tamata*). Powered by Google Gemma LLM via OpenRouter.
-* **📈 Mandi Price Estimations:** Catalog items load simulated market rates and historical price variations. Users can log their local retail purchases to calculate real-time inflation/deflation indices.
+* **📈 Mandi Price Estimations & Stock Validation:** Catalog items load simulated market rates and historical price variations. Pre-order stock validations ensure inventory integrity before checkout.
+* **🖨️ Cart Print Functionality & Fallbacks:** Seamlessly print shopping carts for offline reference. Upgraded item display logic ensures reliable bilingual presentation with robust translation fallbacks.
 * **🔑 Secure Google OAuth Auth:** Unified single-sign-on portal utilizing Google OAuth 2.0 with persistent server-side cookie sessions.
-* **💳 Premium Checkout Portal:** Features a gorgeous, interactive CSS credit card graphic synced to mock cardholder data, detailed pricing verification logs, and delivery contact address/phone number collection forms.
+* **💳 Premium Checkout & Razorpay Integration:** Features a gorgeous, interactive checkout portal synchronized with a Razorpay mock payment flow. Includes fully functional webhook support for asynchronous payment events, pricing verification, and delivery contact collection forms.
 * **📍 Live Delivery Tracker:** Simulates delivery status progression (*Placed* ➡️ *Packing* ➡️ *Out for Delivery* ➡️ *Delivered*) in real-time based on the order's age, updating via background polling.
 * **📜 Order History Logs:** Tracks all completed purchases, listing dates, address coordinates, item aggregates, and totals with a "Track Delivery" link back to the live progress map.
 * **🔍 List Filtering:** Quick-search filter bar in the saved grocery lists card to find pre-staged carts instantly.
